@@ -4,15 +4,74 @@
 {% block page_title %}Shelf Management{% endblock %}
 
 {% block content %}
-<div class="shelves-container">
+<div class="shelf-management">
+    <!-- Zone Configuration -->
+    <div class="card mb-4" id="zone-config-card" style="display: none;">
+        <div class="card-header bg-warning">
+            <h5><i class="fas fa-cog me-2"></i>Configure Shelf Zones</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Warning:</strong> Changing shelf zones will affect product placement compatibility. This action requires confirmation.
+            </div>
+            
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Small Items Zone</label>
+                    <div class="input-group">
+                        <span class="input-group-text">Shelf</span>
+                        <input type="number" id="small-start" class="form-control" min="1" max="40" value="1">
+                        <span class="input-group-text">to</span>
+                        <input type="number" id="small-end" class="form-control" min="1" max="40" value="15">
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <label class="form-label">Medium Items Zone</label>
+                    <div class="input-group">
+                        <span class="input-group-text">Shelf</span>
+                        <input type="number" id="medium-start" class="form-control" min="1" max="40" value="16">
+                        <span class="input-group-text">to</span>
+                        <input type="number" id="medium-end" class="form-control" min="1" max="40" value="30">
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <label class="form-label">Large Items Zone</label>
+                    <div class="input-group">
+                        <span class="input-group-text">Shelf</span>
+                        <input type="number" id="large-start" class="form-control" min="1" max="40" value="31">
+                        <span class="input-group-text">to</span>
+                        <input type="number" id="large-end" class="form-control" min="1" max="40" value="40">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-3">
+                <button class="btn btn-danger" onclick="saveZoneConfig()">
+                    <i class="fas fa-save me-2"></i>Save Zone Configuration
+                </button>
+                <button class="btn btn-secondary" onclick="cancelZoneConfig()">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Product Selector and Controls -->
     <div class="card mb-4">
         <div class="card-header">
             <div class="d-flex justify-content-between align-items-center">
                 <h5><i class="fas fa-box me-2"></i>Product Assignment</h5>
-                <button class="btn btn-primary btn-sm" onclick="syncProducts()">
-                    <i class="fas fa-sync me-2"></i>Sync Products
-                </button>
+                <div>
+                    <button class="btn btn-warning btn-sm me-2" onclick="openZoneConfig()">
+                        <i class="fas fa-cog me-1"></i>Configure Zones
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="syncProducts()">
+                        <i class="fas fa-sync me-1"></i>Sync Products
+                    </button>
+                </div>
             </div>
         </div>
         <div class="card-body">
@@ -52,91 +111,150 @@
             </div>
         </div>
         <div class="card-body">
-            <div class="shelf-zones mb-3">
+            <div class="shelf-zones mb-3" id="zone-display">
                 <span class="badge bg-secondary me-2">Zone 1-15: Small Items</span>
                 <span class="badge bg-primary me-2">Zone 16-30: Medium Items</span>
                 <span class="badge bg-warning text-dark">Zone 31-40: Large Items</span>
             </div>
             
-            <div class="shelves-container">
-                {% for shelf in range(1, 41) %}
-                <div class="shelf-box" data-shelf="{{ shelf }}" onclick="selectShelf({{ shelf }})">
-                    <div class="shelf-number">{{ shelf }}</div>
-                    <div class="shelf-content">
-                        <div class="shelf-status">Empty</div>
-                        <div class="shelf-product" style="display: none;">
-                            <div class="product-sku"></div>
-                            <div class="product-name"></div>
-                            <div class="product-stock"></div>
+            <div class="shelf-grid-wrapper">
+                <div class="shelf-grid">
+                    {% for shelf in range(1, 41) %}
+                    <div class="shelf-item" data-shelf="{{ shelf }}" onclick="selectShelf({{ shelf }})">
+                        <div class="shelf-number">{{ shelf }}</div>
+                        <div class="shelf-content">
+                            <div class="shelf-status">Empty</div>
+                            <div class="shelf-product" style="display: none;">
+                                <div class="product-sku"></div>
+                                <div class="product-name"></div>
+                                <div class="product-stock"></div>
+                            </div>
                         </div>
                     </div>
-                    <button class="assign-btn btn btn-sm btn-primary" disabled style="display: none;">
-                        Assign
-                    </button>
+                    {% endfor %}
                 </div>
-                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Confirm Zone Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to change the shelf zone configuration?</p>
+                <p class="text-danger"><strong>Warning:</strong> This will affect all existing shelf assignments and product compatibility.</p>
+                <div id="zone-changes" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmZoneChanges()">
+                    <i class="fas fa-check me-2"></i>Confirm Changes
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <style>
-.shelves-container {
-    display: grid;
-    grid-template-columns: repeat(10, 1fr);
-    gap: 10px;
+.shelf-management {
     padding: 20px;
 }
 
-.shelf-box {
-    background: #fff;
+.shelf-grid-wrapper {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.shelf-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 15px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+    .shelf-grid {
+        grid-template-columns: repeat(8, 1fr);
+    }
+}
+
+@media (min-width: 1200px) {
+    .shelf-grid {
+        grid-template-columns: repeat(10, 1fr);
+    }
+}
+
+.shelf-item {
+    background: white;
     border: 2px solid #dee2e6;
     border-radius: 8px;
     padding: 10px;
     text-align: center;
     cursor: pointer;
     transition: all 0.3s ease;
-    min-height: 120px;
+    min-height: 100px;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    position: relative;
 }
 
-.shelf-box:hover {
+.shelf-item:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
-.shelf-box.selected {
+.shelf-item.selected {
     border-color: #0d6efd;
     background: #e7f1ff;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
 }
 
-.shelf-box.compatible {
+.shelf-item.compatible {
     border-color: #28a745;
     background: #d4edda;
 }
 
-.shelf-box.incompatible {
+.shelf-item.incompatible {
     border-color: #dc3545;
     background: #f8d7da;
     cursor: not-allowed;
     opacity: 0.6;
 }
 
-.shelf-box.occupied {
+.shelf-item.occupied {
     border-color: #ffc107;
     background: #fff3cd;
 }
 
-.shelf-box.same-product {
+.shelf-item.same-product {
     border-color: #17a2b8;
     background: #d1ecf1;
 }
 
+/* Zone colors for shelf items */
+.shelf-item.zone-small {
+    border-top: 4px solid #6c757d;
+}
+
+.shelf-item.zone-medium {
+    border-top: 4px solid #0d6efd;
+}
+
+.shelf-item.zone-large {
+    border-top: 4px solid #ffc107;
+}
+
 .shelf-number {
     font-weight: bold;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     color: #495057;
     margin-bottom: 5px;
 }
@@ -150,7 +268,7 @@
 
 .shelf-status {
     color: #6c757d;
-    font-size: 0.875rem;
+    font-size: 0.85rem;
 }
 
 .shelf-product {
@@ -160,6 +278,7 @@
 .product-sku {
     font-weight: bold;
     color: #0d6efd;
+    font-size: 0.7rem;
 }
 
 .product-name {
@@ -167,37 +286,43 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 0.7rem;
+    margin: 2px 0;
 }
 
 .product-stock {
     color: #6c757d;
-    margin-top: 2px;
+    font-size: 0.65rem;
 }
 
 .shelf-legend {
     display: flex;
     gap: 15px;
+    flex-wrap: wrap;
 }
 
 .legend-item {
     display: flex;
     align-items: center;
     gap: 5px;
+    font-size: 0.9rem;
 }
 
 .legend-color {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     border-radius: 4px;
     border: 1px solid #dee2e6;
 }
 
 .legend-color.compatible {
     background: #d4edda;
+    border-color: #28a745;
 }
 
 .legend-color.occupied {
     background: #fff3cd;
+    border-color: #ffc107;
 }
 
 .legend-color.empty {
@@ -206,6 +331,7 @@
 
 .legend-color.incompatible {
     background: #f8d7da;
+    border-color: #dc3545;
 }
 
 .shelf-zones {
@@ -221,11 +347,169 @@ let shelves = [];
 let selectedProduct = null;
 let selectedShelf = null;
 let productMetadata = {};
+let zoneConfig = {
+    small: { start: 1, end: 15 },
+    medium: { start: 16, end: 30 },
+    large: { start: 31, end: 40 }
+};
 
 // Load data on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadShelfData();
+    loadZoneConfig();
 });
+
+function loadZoneConfig() {
+    fetch('/admin/shelves/zones')
+        .then(response => response.json())
+        .then(data => {
+            if (data.zones) {
+                zoneConfig = data.zones;
+                updateZoneDisplay();
+                applyZoneColors();
+            }
+        })
+        .catch(error => console.error('Error loading zone config:', error));
+}
+
+function updateZoneDisplay() {
+    const display = document.getElementById('zone-display');
+    display.innerHTML = `
+        <span class="badge bg-secondary me-2">Zone ${zoneConfig.small.start}-${zoneConfig.small.end}: Small Items</span>
+        <span class="badge bg-primary me-2">Zone ${zoneConfig.medium.start}-${zoneConfig.medium.end}: Medium Items</span>
+        <span class="badge bg-warning text-dark">Zone ${zoneConfig.large.start}-${zoneConfig.large.end}: Large Items</span>
+    `;
+}
+
+function applyZoneColors() {
+    document.querySelectorAll('.shelf-item').forEach(item => {
+        const shelfNum = parseInt(item.dataset.shelf);
+        item.classList.remove('zone-small', 'zone-medium', 'zone-large');
+        
+        if (shelfNum >= zoneConfig.small.start && shelfNum <= zoneConfig.small.end) {
+            item.classList.add('zone-small');
+        } else if (shelfNum >= zoneConfig.medium.start && shelfNum <= zoneConfig.medium.end) {
+            item.classList.add('zone-medium');
+        } else if (shelfNum >= zoneConfig.large.start && shelfNum <= zoneConfig.large.end) {
+            item.classList.add('zone-large');
+        }
+    });
+}
+
+function openZoneConfig() {
+    document.getElementById('zone-config-card').style.display = 'block';
+    document.getElementById('small-start').value = zoneConfig.small.start;
+    document.getElementById('small-end').value = zoneConfig.small.end;
+    document.getElementById('medium-start').value = zoneConfig.medium.start;
+    document.getElementById('medium-end').value = zoneConfig.medium.end;
+    document.getElementById('large-start').value = zoneConfig.large.start;
+    document.getElementById('large-end').value = zoneConfig.large.end;
+}
+
+function cancelZoneConfig() {
+    document.getElementById('zone-config-card').style.display = 'none';
+}
+
+function saveZoneConfig() {
+    const newConfig = {
+        small: {
+            start: parseInt(document.getElementById('small-start').value),
+            end: parseInt(document.getElementById('small-end').value)
+        },
+        medium: {
+            start: parseInt(document.getElementById('medium-start').value),
+            end: parseInt(document.getElementById('medium-end').value)
+        },
+        large: {
+            start: parseInt(document.getElementById('large-start').value),
+            end: parseInt(document.getElementById('large-end').value)
+        }
+    };
+    
+    // Validate zones don't overlap
+    const allRanges = [];
+    for (const [size, range] of Object.entries(newConfig)) {
+        for (let i = range.start; i <= range.end; i++) {
+            if (allRanges.includes(i)) {
+                alert('Error: Zones cannot overlap. Shelf ' + i + ' is assigned to multiple zones.');
+                return;
+            }
+            allRanges.push(i);
+        }
+    }
+    
+    // Show confirmation modal
+    const changesDiv = document.getElementById('zone-changes');
+    changesDiv.innerHTML = `
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Zone</th>
+                    <th>Current</th>
+                    <th>New</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Small Items</td>
+                    <td>${zoneConfig.small.start}-${zoneConfig.small.end}</td>
+                    <td>${newConfig.small.start}-${newConfig.small.end}</td>
+                </tr>
+                <tr>
+                    <td>Medium Items</td>
+                    <td>${zoneConfig.medium.start}-${zoneConfig.medium.end}</td>
+                    <td>${newConfig.medium.start}-${newConfig.medium.end}</td>
+                </tr>
+                <tr>
+                    <td>Large Items</td>
+                    <td>${zoneConfig.large.start}-${zoneConfig.large.end}</td>
+                    <td>${newConfig.large.start}-${newConfig.large.end}</td>
+                </tr>
+            </tbody>
+        </table>
+    `;
+    
+    // Store new config temporarily
+    window.pendingZoneConfig = newConfig;
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    modal.show();
+}
+
+function confirmZoneChanges() {
+    if (!window.pendingZoneConfig) return;
+    
+    fetch('/admin/shelves/zones', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ zones: window.pendingZoneConfig })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            zoneConfig = window.pendingZoneConfig;
+            updateZoneDisplay();
+            applyZoneColors();
+            alert('Zone configuration updated successfully');
+            
+            // Hide modal and config card
+            bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+            document.getElementById('zone-config-card').style.display = 'none';
+            
+            // Reload shelf data
+            loadShelfData();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to update zones'));
+        }
+    })
+    .catch(error => {
+        console.error('Error updating zones:', error);
+        alert('Failed to update zone configuration');
+    });
+}
 
 function loadShelfData() {
     fetch('/admin/shelves/assign')
@@ -240,7 +524,6 @@ function loadShelfData() {
         })
         .catch(error => {
             console.error('Error loading shelf data:', error);
-            alert('Failed to load shelf data');
         });
 }
 
@@ -288,39 +571,39 @@ function onProductSelected() {
 function highlightCompatibleShelves(boxSize) {
     clearShelfHighlights();
     
-    const shelfBoxes = document.querySelectorAll('.shelf-box');
-    shelfBoxes.forEach(box => {
-        const shelfNumber = parseInt(box.dataset.shelf);
+    const shelfItems = document.querySelectorAll('.shelf-item');
+    shelfItems.forEach(item => {
+        const shelfNumber = parseInt(item.dataset.shelf);
         const isCompatible = checkCompatibility(shelfNumber, boxSize);
         const currentShelf = shelves.find(s => s.shelf_number === shelfNumber);
         
         if (currentShelf && currentShelf.sku === selectedProduct.sku) {
-            box.classList.add('same-product');
+            item.classList.add('same-product');
         } else if (currentShelf && currentShelf.sku) {
-            box.classList.add('occupied');
+            item.classList.add('occupied');
         } else if (isCompatible) {
-            box.classList.add('compatible');
+            item.classList.add('compatible');
         } else {
-            box.classList.add('incompatible');
+            item.classList.add('incompatible');
         }
     });
 }
 
 function checkCompatibility(shelfNumber, boxSize) {
     if (boxSize === 'small') {
-        return shelfNumber >= 1 && shelfNumber <= 15;
+        return shelfNumber >= zoneConfig.small.start && shelfNumber <= zoneConfig.small.end;
     } else if (boxSize === 'medium') {
-        return shelfNumber >= 16 && shelfNumber <= 30;
+        return shelfNumber >= zoneConfig.medium.start && shelfNumber <= zoneConfig.medium.end;
     } else if (boxSize === 'large') {
-        return shelfNumber >= 31 && shelfNumber <= 40;
+        return shelfNumber >= zoneConfig.large.start && shelfNumber <= zoneConfig.large.end;
     }
     return false;
 }
 
 function clearShelfHighlights() {
-    const shelfBoxes = document.querySelectorAll('.shelf-box');
-    shelfBoxes.forEach(box => {
-        box.classList.remove('compatible', 'incompatible', 'occupied', 'same-product', 'selected');
+    const shelfItems = document.querySelectorAll('.shelf-item');
+    shelfItems.forEach(item => {
+        item.classList.remove('compatible', 'incompatible', 'occupied', 'same-product', 'selected');
     });
 }
 
@@ -330,17 +613,17 @@ function selectShelf(shelfNumber) {
         return;
     }
     
-    const box = document.querySelector(`[data-shelf="${shelfNumber}"]`);
-    if (box.classList.contains('incompatible')) {
+    const item = document.querySelector(`[data-shelf="${shelfNumber}"]`);
+    if (item.classList.contains('incompatible')) {
         alert('This shelf is not compatible with the selected product size');
         return;
     }
     
     // Clear previous selection
-    document.querySelectorAll('.shelf-box').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('.shelf-item').forEach(b => b.classList.remove('selected'));
     
     // Select this shelf
-    box.classList.add('selected');
+    item.classList.add('selected');
     selectedShelf = shelfNumber;
     
     // Enable assign button
@@ -366,7 +649,7 @@ function assignToShelf() {
     .then(data => {
         if (data.success) {
             alert(data.message);
-            loadShelfData(); // Reload data
+            loadShelfData();
             
             // Reset selection
             document.getElementById('product-selector').value = '';
@@ -386,10 +669,10 @@ function assignToShelf() {
 
 function updateShelfDisplay() {
     shelves.forEach(shelf => {
-        const box = document.querySelector(`[data-shelf="${shelf.shelf_number}"]`);
-        if (box && shelf.sku) {
-            const statusEl = box.querySelector('.shelf-status');
-            const productEl = box.querySelector('.shelf-product');
+        const item = document.querySelector(`[data-shelf="${shelf.shelf_number}"]`);
+        if (item && shelf.sku) {
+            const statusEl = item.querySelector('.shelf-status');
+            const productEl = item.querySelector('.shelf-product');
             
             statusEl.style.display = 'none';
             productEl.style.display = 'block';
@@ -399,12 +682,14 @@ function updateShelfDisplay() {
             productEl.querySelector('.product-stock').textContent = `Stock: ${shelf.current_stock}`;
         }
     });
+    
+    applyZoneColors();
 }
 
 function syncProducts() {
     const btn = event.target;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Syncing...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Syncing...';
     
     fetch('/admin/products/sync', {
         method: 'POST'
@@ -413,7 +698,7 @@ function syncProducts() {
     .then(data => {
         if (data.status === 'success') {
             alert(data.message);
-            loadShelfData(); // Reload with new products
+            loadShelfData();
         } else {
             alert('Error: ' + (data.error || 'Failed to sync products'));
         }
@@ -424,7 +709,7 @@ function syncProducts() {
     })
     .finally(() => {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-sync me-2"></i>Sync Products';
+        btn.innerHTML = '<i class="fas fa-sync me-1"></i>Sync Products';
     });
 }
 </script>

@@ -497,9 +497,12 @@ def assign_shelf():
 
 def check_shelf_compatibility(shelf_number, box_size):
     """Check if shelf is compatible with product size"""
-    # Small products: shelves 1-15
-    # Medium products: shelves 16-30
-    # Large products: shelves 31-40
+    # Get zone configuration from database
+    zone = models.ShelfZoneConfig.query.filter_by(zone_name=box_size).first()
+    if zone:
+        return zone.start_shelf <= shelf_number <= zone.end_shelf
+    
+    # Default fallback if no configuration exists
     if box_size == 'small':
         return 1 <= shelf_number <= 15
     elif box_size == 'medium':
@@ -507,6 +510,92 @@ def check_shelf_compatibility(shelf_number, box_size):
     elif box_size == 'large':
         return 31 <= shelf_number <= 40
     return False
+
+@app.route('/admin/shelves/zones', methods=['GET', 'POST'])
+def manage_shelf_zones():
+    """Get or update shelf zone configuration"""
+    if not session.get('admin_logged_in'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if request.method == 'GET':
+        # Get current zone configuration
+        zones = models.ShelfZoneConfig.query.all()
+        
+        if not zones:
+            # Create default zones if none exist
+            default_zones = [
+                ('small', 1, 15, '#6c757d'),
+                ('medium', 16, 30, '#0d6efd'),
+                ('large', 31, 40, '#ffc107')
+            ]
+            
+            for zone_name, start, end, color in default_zones:
+                zone = models.ShelfZoneConfig(
+                    zone_name=zone_name,
+                    start_shelf=start,
+                    end_shelf=end,
+                    color=color
+                )
+                db.session.add(zone)
+            
+            db.session.commit()
+            zones = models.ShelfZoneConfig.query.all()
+        
+        zone_data = {
+            zone.zone_name: {
+                'start': zone.start_shelf,
+                'end': zone.end_shelf,
+                'color': zone.color
+            } for zone in zones
+        }
+        
+        return jsonify({'zones': zone_data})
+    
+    # POST - Update zone configuration
+    try:
+        data = request.get_json()
+        new_zones = data.get('zones')
+        
+        if not new_zones:
+            return jsonify({'error': 'No zone data provided'}), 400
+        
+        # Validate zones don't overlap
+        all_shelves = set()
+        for zone_name, config in new_zones.items():
+            for shelf in range(config['start'], config['end'] + 1):
+                if shelf in all_shelves:
+                    return jsonify({'error': f'Shelf {shelf} is assigned to multiple zones'}), 400
+                if shelf < 1 or shelf > 40:
+                    return jsonify({'error': f'Shelf {shelf} is out of range (1-40)'}), 400
+                all_shelves.add(shelf)
+        
+        # Update zones in database
+        for zone_name, config in new_zones.items():
+            zone = models.ShelfZoneConfig.query.filter_by(zone_name=zone_name).first()
+            if zone:
+                zone.start_shelf = config['start']
+                zone.end_shelf = config['end']
+                zone.updated_at = datetime.now()
+            else:
+                # Create new zone if doesn't exist
+                zone = models.ShelfZoneConfig(
+                    zone_name=zone_name,
+                    start_shelf=config['start'],
+                    end_shelf=config['end'],
+                    color=config.get('color', '#6c757d')
+                )
+                db.session.add(zone)
+        
+        db.session.commit()
+        
+        # Log the change
+        logging.info(f"Shelf zones updated by {session.get('admin_user')}")
+        
+        return jsonify({'success': True, 'message': 'Zone configuration updated successfully'})
+        
+    except Exception as e:
+        logging.error(f"Error updating shelf zones: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/admin/orders')
 def admin_orders():

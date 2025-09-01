@@ -58,6 +58,23 @@ class TestUser(db.Model):
     pin = db.Column(db.String(6))
     active = db.Column(db.Boolean, default=True)
 
+class ShelfZoneConfig(db.Model):
+    """Configuration for shelf zones"""
+    __tablename__ = 'shelf_zone_config'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    zone_name = db.Column(db.String(20))  # 'small', 'medium', 'large'
+    start_shelf = db.Column(db.Integer)
+    end_shelf = db.Column(db.Integer)
+    color = db.Column(db.String(20))  # Display color for zone
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (
+        CheckConstraint('start_shelf >= 1 AND end_shelf <= 40', name='valid_shelf_range'),
+        CheckConstraint("zone_name IN ('small', 'medium', 'large')", name='valid_zone_name'),
+    )
+
 class ProductMetadata(db.Model):
     """Product metadata for shelf compatibility"""
     __tablename__ = 'product_metadata'
