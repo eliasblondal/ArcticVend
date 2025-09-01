@@ -35,6 +35,12 @@ function initializeAdmin() {
     setupKeyboardShortcuts();
     setupErrorHandling();
     
+    // Update last update time if element exists
+    const lastUpdateElement = document.getElementById('lastUpdateTime');
+    if (lastUpdateElement) {
+        lastUpdateElement.textContent = new Date().toLocaleString();
+    }
+    
     console.log('Admin interface initialized');
 }
 
@@ -549,7 +555,10 @@ function validateShelfForm(form) {
  * Setup shelf table search
  */
 function setupShelfTableSearch() {
-    const searchInput = document.querySelector('#shelvesTable').parentElement.querySelector('input[placeholder*="Search"]');
+    const shelvesTable = document.querySelector('#shelvesTable');
+    if (!shelvesTable) return;
+    
+    const searchInput = shelvesTable.parentElement.querySelector('input[placeholder*="Search"]');
     
     if (searchInput) {
         let searchTimeout;

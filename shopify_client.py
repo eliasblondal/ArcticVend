@@ -77,7 +77,9 @@ class ShopifyClient:
                     inventoryLevels(first: 100) {
                         edges {
                             node {
-                                available
+                                quantities(names: ["available"]) {
+                                    quantity
+                                }
                                 item {
                                     sku
                                     variant {
@@ -133,7 +135,10 @@ class ShopifyClient:
             
             for edge in inventory_levels:
                 node = edge['node']
-                available = node['available']
+                # Get available quantity from quantities array
+                available = 0
+                if 'quantities' in node and node['quantities']:
+                    available = node['quantities'][0].get('quantity', 0)
                 
                 # Only show products with available inventory
                 if available > 0:
