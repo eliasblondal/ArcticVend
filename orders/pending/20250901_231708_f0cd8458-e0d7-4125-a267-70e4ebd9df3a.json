@@ -1,0 +1,23 @@
+{
+  "order_id": "f0cd8458-e0d7-4125-a267-70e4ebd9df3a",
+  "order_type": "kiosk",
+  "shopify_order_id": "11819576754545",
+  "shopify_order_number": 82654,
+  "items": [
+    {
+      "price": 1500.0,
+      "quantity": 1,
+      "sku": "TASK03",
+      "title": "Shopify Product / Taskmanager / Product 3"
+    },
+    {
+      "price": 1500.0,
+      "quantity": 1,
+      "sku": "TASK01",
+      "title": "Shopify Product / Taskmanager / Product 1"
+    }
+  ],
+  "shelf_numbers": [],
+  "created_at": "2025-09-01T23:17:08.935832",
+  "test_order": true
+}

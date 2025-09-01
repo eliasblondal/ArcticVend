@@ -9,15 +9,12 @@ class ShelfMapping(db.Model):
     shelf_number = db.Column(db.Integer, primary_key=True)
     sku = db.Column(db.String(50))
     product_name = db.Column(db.String(100))
-    shelf_size = db.Column(db.String(20))
     current_stock = db.Column(db.Integer, default=0)
-    max_capacity = db.Column(db.Integer)
     active = db.Column(db.Boolean, default=True)
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
     
     __table_args__ = (
         CheckConstraint('shelf_number BETWEEN 1 AND 40', name='shelf_number_range'),
-        CheckConstraint("shelf_size IN ('small', 'medium', 'large')", name='valid_shelf_size'),
     )
 
 class OrderQueue(db.Model):
@@ -60,6 +57,21 @@ class TestUser(db.Model):
     username = db.Column(db.String(50))
     pin = db.Column(db.String(6))
     active = db.Column(db.Boolean, default=True)
+
+class ProductMetadata(db.Model):
+    """Product metadata for shelf compatibility"""
+    __tablename__ = 'product_metadata'
+    
+    sku = db.Column(db.String(50), primary_key=True)
+    box_size = db.Column(db.String(20))  # 'small', 'medium', 'large'
+    dimensions_cm = db.Column(db.JSON)  # {"width": 20, "height": 30, "depth": 15}
+    max_stack = db.Column(db.Integer)  # How many fit in one shelf
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (
+        CheckConstraint("box_size IN ('small', 'medium', 'large')", name='valid_box_size'),
+    )
 
 class User(db.Model):
     """Admin users model"""

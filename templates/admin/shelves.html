@@ -5,247 +5,427 @@
 
 {% block content %}
 <div class="shelves-container">
-    <!-- Add/Edit Shelf Form -->
+    <!-- Product Selector and Controls -->
     <div class="card mb-4">
         <div class="card-header">
-            <h5><i class="fas fa-plus me-2"></i>Assign Product to Shelf</h5>
+            <div class="d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-box me-2"></i>Product Assignment</h5>
+                <button class="btn btn-primary btn-sm" onclick="syncProducts()">
+                    <i class="fas fa-sync me-2"></i>Sync Products
+                </button>
+            </div>
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ url_for('assign_shelf') }}" class="row g-3">
-                <div class="col-md-2">
-                    <label for="shelf_number" class="form-label">Shelf Number</label>
-                    <select class="form-select" id="shelf_number" name="shelf_number" required>
-                        <option value="">Select Shelf</option>
-                        {% for i in range(1, 41) %}
-                        <option value="{{ i }}">Shelf {{ i }}</option>
-                        {% endfor %}
+            <div class="row g-3 align-items-end">
+                <div class="col-md-6">
+                    <label for="product-selector" class="form-label">Select Product from Shopify</label>
+                    <select id="product-selector" class="form-select form-select-lg">
+                        <option value="">-- Select a product to assign --</option>
                     </select>
                 </div>
-                
-                <div class="col-md-2">
-                    <label for="sku" class="form-label">Product SKU</label>
-                    <input type="text" class="form-control" id="sku" name="sku" required>
-                </div>
-                
                 <div class="col-md-3">
-                    <label for="product_name" class="form-label">Product Name</label>
-                    <input type="text" class="form-control" id="product_name" name="product_name" required>
+                    <div id="product-info" class="text-muted" style="display: none;">
+                        <small>Box Size: <span id="box-size-display" class="badge bg-info"></span></small><br>
+                        <small>Available: <span id="stock-display"></span> units</small>
+                    </div>
                 </div>
-                
-                <div class="col-md-2">
-                    <label for="shelf_size" class="form-label">Shelf Size</label>
-                    <select class="form-select" id="shelf_size" name="shelf_size" required>
-                        <option value="">Select Size</option>
-                        <option value="small">Small</option>
-                        <option value="medium">Medium</option>
-                        <option value="large">Large</option>
-                    </select>
-                </div>
-                
-                <div class="col-md-2">
-                    <label for="max_capacity" class="form-label">Max Capacity</label>
-                    <input type="number" class="form-control" id="max_capacity" name="max_capacity" min="1" required>
-                </div>
-                
-                <div class="col-md-1">
-                    <label class="form-label">&nbsp;</label>
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-save"></i>
+                <div class="col-md-3">
+                    <button class="btn btn-success w-100" id="assign-btn" disabled onclick="assignToShelf()">
+                        <i class="fas fa-plus me-2"></i>Assign to Selected Shelf
                     </button>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
     
-    <!-- Shelves Grid -->
+    <!-- Visual Shelf Grid -->
     <div class="card">
         <div class="card-header">
             <div class="d-flex justify-content-between align-items-center">
                 <h5><i class="fas fa-warehouse me-2"></i>Shelf Layout (40 Shelves)</h5>
                 <div class="shelf-legend">
-                    <span class="badge bg-success me-2">Active</span>
-                    <span class="badge bg-secondary me-2">Empty</span>
-                    <span class="badge bg-warning me-2">Low Stock</span>
+                    <span class="legend-item"><span class="legend-color compatible"></span> Compatible</span>
+                    <span class="legend-item"><span class="legend-color occupied"></span> Occupied</span>
+                    <span class="legend-item"><span class="legend-color empty"></span> Empty</span>
+                    <span class="legend-item"><span class="legend-color incompatible"></span> Incompatible</span>
                 </div>
             </div>
         </div>
         <div class="card-body">
-            <div class="shelves-grid">
-                {% for i in range(1, 41) %}
-                {% set shelf = shelves | selectattr("shelf_number", "equalto", i) | first %}
-                <div class="shelf-slot {{ 'active' if shelf and shelf.active else 'empty' }} {{ 'low-stock' if shelf and shelf.current_stock < (shelf.max_capacity * 0.2) else '' }}" 
-                     data-shelf="{{ i }}" 
-                     {% if shelf %}data-sku="{{ shelf.sku }}"{% endif %}>
-                    <div class="shelf-number">{{ i }}</div>
-                    {% if shelf and shelf.active %}
+            <div class="shelf-zones mb-3">
+                <span class="badge bg-secondary me-2">Zone 1-15: Small Items</span>
+                <span class="badge bg-primary me-2">Zone 16-30: Medium Items</span>
+                <span class="badge bg-warning text-dark">Zone 31-40: Large Items</span>
+            </div>
+            
+            <div class="shelves-container">
+                {% for shelf in range(1, 41) %}
+                <div class="shelf-box" data-shelf="{{ shelf }}" onclick="selectShelf({{ shelf }})">
+                    <div class="shelf-number">{{ shelf }}</div>
                     <div class="shelf-content">
-                        <div class="shelf-sku">{{ shelf.sku }}</div>
-                        <div class="shelf-name">{{ shelf.product_name[:20] }}{% if shelf.product_name|length > 20 %}...{% endif %}</div>
-                        <div class="shelf-stock">
-                            <div class="stock-bar">
-                                <div class="stock-fill" style="width: {{ (shelf.current_stock / shelf.max_capacity * 100) if shelf.max_capacity > 0 else 0 }}%"></div>
-                            </div>
-                            <small>{{ shelf.current_stock }}/{{ shelf.max_capacity }}</small>
-                        </div>
-                        <div class="shelf-size">
-                            <span class="badge bg-info">{{ shelf.shelf_size.title() }}</span>
+                        <div class="shelf-status">Empty</div>
+                        <div class="shelf-product" style="display: none;">
+                            <div class="product-sku"></div>
+                            <div class="product-name"></div>
+                            <div class="product-stock"></div>
                         </div>
                     </div>
-                    {% else %}
-                    <div class="shelf-content">
-                        <div class="empty-shelf">
-                            <i class="fas fa-plus text-muted"></i>
-                            <small class="text-muted">Empty</small>
-                        </div>
-                    </div>
-                    {% endif %}
+                    <button class="assign-btn btn btn-sm btn-primary" disabled style="display: none;">
+                        Assign
+                    </button>
                 </div>
                 {% endfor %}
             </div>
         </div>
     </div>
-    
-    <!-- Shelf Details Table -->
-    <div class="card mt-4">
-        <div class="card-header">
-            <h5><i class="fas fa-table me-2"></i>Shelf Details</h5>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped" id="shelvesTable">
-                    <thead>
-                        <tr>
-                            <th>Shelf #</th>
-                            <th>SKU</th>
-                            <th>Product</th>
-                            <th>Size</th>
-                            <th>Stock</th>
-                            <th>Capacity</th>
-                            <th>Status</th>
-                            <th>Last Updated</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for shelf in shelves %}
-                        <tr>
-                            <td><strong>{{ shelf.shelf_number }}</strong></td>
-                            <td>{{ shelf.sku or '-' }}</td>
-                            <td>{{ shelf.product_name or '-' }}</td>
-                            <td>
-                                {% if shelf.shelf_size %}
-                                <span class="badge bg-info">{{ shelf.shelf_size.title() }}</span>
-                                {% else %}
-                                -
-                                {% endif %}
-                            </td>
-                            <td>{{ shelf.current_stock or 0 }}</td>
-                            <td>{{ shelf.max_capacity or 0 }}</td>
-                            <td>
-                                {% if shelf.active %}
-                                <span class="badge bg-success">Active</span>
-                                {% else %}
-                                <span class="badge bg-secondary">Inactive</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if shelf.last_updated %}
-                                {{ shelf.last_updated.strftime('%Y-%m-%d %H:%M') }}
-                                {% else %}
-                                -
-                                {% endif %}
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-primary edit-shelf-btn" 
-                                        data-shelf="{{ shelf.shelf_number }}"
-                                        data-sku="{{ shelf.sku or '' }}"
-                                        data-name="{{ shelf.product_name or '' }}"
-                                        data-size="{{ shelf.shelf_size or '' }}"
-                                        data-capacity="{{ shelf.max_capacity or '' }}">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
 </div>
 
+<style>
+.shelves-container {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 10px;
+    padding: 20px;
+}
+
+.shelf-box {
+    background: #fff;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.shelf-box:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.shelf-box.selected {
+    border-color: #0d6efd;
+    background: #e7f1ff;
+}
+
+.shelf-box.compatible {
+    border-color: #28a745;
+    background: #d4edda;
+}
+
+.shelf-box.incompatible {
+    border-color: #dc3545;
+    background: #f8d7da;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.shelf-box.occupied {
+    border-color: #ffc107;
+    background: #fff3cd;
+}
+
+.shelf-box.same-product {
+    border-color: #17a2b8;
+    background: #d1ecf1;
+}
+
+.shelf-number {
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.shelf-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.shelf-status {
+    color: #6c757d;
+    font-size: 0.875rem;
+}
+
+.shelf-product {
+    font-size: 0.75rem;
+}
+
+.product-sku {
+    font-weight: bold;
+    color: #0d6efd;
+}
+
+.product-name {
+    color: #495057;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.product-stock {
+    color: #6c757d;
+    margin-top: 2px;
+}
+
+.shelf-legend {
+    display: flex;
+    gap: 15px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.legend-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+}
+
+.legend-color.compatible {
+    background: #d4edda;
+}
+
+.legend-color.occupied {
+    background: #fff3cd;
+}
+
+.legend-color.empty {
+    background: #ffffff;
+}
+
+.legend-color.incompatible {
+    background: #f8d7da;
+}
+
+.shelf-zones {
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 5px;
+}
+</style>
+
 <script>
-// Edit shelf functionality
-document.querySelectorAll('.edit-shelf-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const shelfNumber = this.dataset.shelf;
-        const sku = this.dataset.sku;
-        const name = this.dataset.name;
-        const size = this.dataset.size;
-        const capacity = this.dataset.capacity;
-        
-        // Populate form with current values
-        document.getElementById('shelf_number').value = shelfNumber;
-        document.getElementById('sku').value = sku;
-        document.getElementById('product_name').value = name;
-        document.getElementById('shelf_size').value = size;
-        document.getElementById('max_capacity').value = capacity;
-        
-        // Scroll to form
-        document.querySelector('.shelves-container').scrollIntoView();
-    });
-});
+let products = [];
+let shelves = [];
+let selectedProduct = null;
+let selectedShelf = null;
+let productMetadata = {};
 
-// Shelf slot click to edit
-document.querySelectorAll('.shelf-slot').forEach(slot => {
-    slot.addEventListener('click', function() {
-        const shelfNumber = this.dataset.shelf;
-        const sku = this.dataset.sku || '';
-        
-        // Populate form
-        document.getElementById('shelf_number').value = shelfNumber;
-        document.getElementById('sku').value = sku;
-        
-        if (sku) {
-            // Find the shelf data and populate other fields
-            const editBtn = document.querySelector(`[data-shelf="${shelfNumber}"]`);
-            if (editBtn) {
-                document.getElementById('product_name').value = editBtn.dataset.name;
-                document.getElementById('shelf_size').value = editBtn.dataset.size;
-                document.getElementById('max_capacity').value = editBtn.dataset.capacity;
-            }
-        } else {
-            // Clear other fields for new assignment
-            document.getElementById('product_name').value = '';
-            document.getElementById('shelf_size').value = '';
-            document.getElementById('max_capacity').value = '';
-        }
-        
-        // Scroll to form
-        document.querySelector('.shelves-container').scrollIntoView();
-    });
-});
-
-// Make table sortable and filterable
+// Load data on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Simple table filtering
-    const tableSearch = document.createElement('input');
-    tableSearch.type = 'text';
-    tableSearch.className = 'form-control mb-3';
-    tableSearch.placeholder = 'Search shelves...';
-    
-    const tableContainer = document.querySelector('#shelvesTable').parentElement;
-    tableContainer.insertBefore(tableSearch, document.querySelector('#shelvesTable'));
-    
-    tableSearch.addEventListener('input', function() {
-        const filter = this.value.toLowerCase();
-        const rows = document.querySelectorAll('#shelvesTable tbody tr');
-        
-        rows.forEach(row => {
-            const text = row.textContent.toLowerCase();
-            row.style.display = text.includes(filter) ? '' : 'none';
-        });
-    });
+    loadShelfData();
 });
+
+function loadShelfData() {
+    fetch('/admin/shelves/assign')
+        .then(response => response.json())
+        .then(data => {
+            products = data.products;
+            shelves = data.shelves;
+            productMetadata = data.metadata;
+            
+            populateProductSelector();
+            updateShelfDisplay();
+        })
+        .catch(error => {
+            console.error('Error loading shelf data:', error);
+            alert('Failed to load shelf data');
+        });
+}
+
+function populateProductSelector() {
+    const selector = document.getElementById('product-selector');
+    selector.innerHTML = '<option value="">-- Select a product to assign --</option>';
+    
+    products.forEach(product => {
+        const option = document.createElement('option');
+        option.value = product.sku;
+        option.textContent = `${product.title} (SKU: ${product.sku}) - ${product.available} available`;
+        option.dataset.product = JSON.stringify(product);
+        selector.appendChild(option);
+    });
+    
+    selector.addEventListener('change', onProductSelected);
+}
+
+function onProductSelected() {
+    const selector = document.getElementById('product-selector');
+    const selected = selector.value;
+    
+    if (!selected) {
+        selectedProduct = null;
+        document.getElementById('product-info').style.display = 'none';
+        clearShelfHighlights();
+        return;
+    }
+    
+    const option = selector.querySelector(`option[value="${selected}"]`);
+    selectedProduct = JSON.parse(option.dataset.product);
+    
+    // Show product info
+    const productInfo = document.getElementById('product-info');
+    productInfo.style.display = 'block';
+    
+    const metadata = productMetadata[selectedProduct.sku] || { box_size: 'medium', max_stack: 10 };
+    document.getElementById('box-size-display').textContent = metadata.box_size;
+    document.getElementById('stock-display').textContent = selectedProduct.available;
+    
+    // Highlight compatible shelves
+    highlightCompatibleShelves(metadata.box_size);
+}
+
+function highlightCompatibleShelves(boxSize) {
+    clearShelfHighlights();
+    
+    const shelfBoxes = document.querySelectorAll('.shelf-box');
+    shelfBoxes.forEach(box => {
+        const shelfNumber = parseInt(box.dataset.shelf);
+        const isCompatible = checkCompatibility(shelfNumber, boxSize);
+        const currentShelf = shelves.find(s => s.shelf_number === shelfNumber);
+        
+        if (currentShelf && currentShelf.sku === selectedProduct.sku) {
+            box.classList.add('same-product');
+        } else if (currentShelf && currentShelf.sku) {
+            box.classList.add('occupied');
+        } else if (isCompatible) {
+            box.classList.add('compatible');
+        } else {
+            box.classList.add('incompatible');
+        }
+    });
+}
+
+function checkCompatibility(shelfNumber, boxSize) {
+    if (boxSize === 'small') {
+        return shelfNumber >= 1 && shelfNumber <= 15;
+    } else if (boxSize === 'medium') {
+        return shelfNumber >= 16 && shelfNumber <= 30;
+    } else if (boxSize === 'large') {
+        return shelfNumber >= 31 && shelfNumber <= 40;
+    }
+    return false;
+}
+
+function clearShelfHighlights() {
+    const shelfBoxes = document.querySelectorAll('.shelf-box');
+    shelfBoxes.forEach(box => {
+        box.classList.remove('compatible', 'incompatible', 'occupied', 'same-product', 'selected');
+    });
+}
+
+function selectShelf(shelfNumber) {
+    if (!selectedProduct) {
+        alert('Please select a product first');
+        return;
+    }
+    
+    const box = document.querySelector(`[data-shelf="${shelfNumber}"]`);
+    if (box.classList.contains('incompatible')) {
+        alert('This shelf is not compatible with the selected product size');
+        return;
+    }
+    
+    // Clear previous selection
+    document.querySelectorAll('.shelf-box').forEach(b => b.classList.remove('selected'));
+    
+    // Select this shelf
+    box.classList.add('selected');
+    selectedShelf = shelfNumber;
+    
+    // Enable assign button
+    document.getElementById('assign-btn').disabled = false;
+}
+
+function assignToShelf() {
+    if (!selectedProduct || !selectedShelf) {
+        alert('Please select both a product and a shelf');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('shelf_number', selectedShelf);
+    formData.append('sku', selectedProduct.sku);
+    formData.append('product_name', selectedProduct.title);
+    
+    fetch('/admin/shelves/assign', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            loadShelfData(); // Reload data
+            
+            // Reset selection
+            document.getElementById('product-selector').value = '';
+            selectedProduct = null;
+            selectedShelf = null;
+            document.getElementById('assign-btn').disabled = true;
+            clearShelfHighlights();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to assign shelf'));
+        }
+    })
+    .catch(error => {
+        console.error('Error assigning shelf:', error);
+        alert('Failed to assign shelf');
+    });
+}
+
+function updateShelfDisplay() {
+    shelves.forEach(shelf => {
+        const box = document.querySelector(`[data-shelf="${shelf.shelf_number}"]`);
+        if (box && shelf.sku) {
+            const statusEl = box.querySelector('.shelf-status');
+            const productEl = box.querySelector('.shelf-product');
+            
+            statusEl.style.display = 'none';
+            productEl.style.display = 'block';
+            
+            productEl.querySelector('.product-sku').textContent = shelf.sku;
+            productEl.querySelector('.product-name').textContent = shelf.product_name;
+            productEl.querySelector('.product-stock').textContent = `Stock: ${shelf.current_stock}`;
+        }
+    });
+}
+
+function syncProducts() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Syncing...';
+    
+    fetch('/admin/products/sync', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.message);
+            loadShelfData(); // Reload with new products
+        } else {
+            alert('Error: ' + (data.error || 'Failed to sync products'));
+        }
+    })
+    .catch(error => {
+        console.error('Error syncing products:', error);
+        alert('Failed to sync products');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync me-2"></i>Sync Products';
+    });
+}
 </script>
 {% endblock %}

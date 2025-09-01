@@ -412,18 +412,61 @@ def admin_shelves():
     shelves = models.ShelfMapping.query.order_by(models.ShelfMapping.shelf_number).all()
     return render_template('admin/shelves.html', shelves=shelves)
 
-@app.route('/admin/shelves/assign', methods=['POST'])
+@app.route('/admin/shelves/assign', methods=['GET', 'POST'])
 def assign_shelf():
-    """SKU to shelf assignment"""
+    """Visual shelf assignment with Shopify products"""
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin_login'))
     
+    if request.method == 'GET':
+        # Get products from Shopify location
+        products = shopify_client.get_products()
+        shelves = models.ShelfMapping.query.all()
+        
+        # Get product metadata for size compatibility
+        metadata = {}
+        for product in products:
+            meta = models.ProductMetadata.query.filter_by(sku=product.get('sku')).first()
+            if meta:
+                metadata[product['sku']] = {
+                    'box_size': meta.box_size,
+                    'max_stack': meta.max_stack
+                }
+        
+        return jsonify({
+            'products': products,
+            'shelves': [{
+                'shelf_number': s.shelf_number,
+                'sku': s.sku,
+                'product_name': s.product_name,
+                'current_stock': s.current_stock,
+                'active': s.active
+            } for s in shelves],
+            'metadata': metadata
+        })
+    
+    # POST - Assign product to shelf
     try:
         shelf_number = int(request.form.get('shelf_number'))
         sku = request.form.get('sku')
         product_name = request.form.get('product_name')
-        shelf_size = request.form.get('shelf_size')
-        max_capacity = int(request.form.get('max_capacity', 0))
+        
+        # Get product metadata
+        meta = models.ProductMetadata.query.filter_by(sku=sku).first()
+        if not meta:
+            # Create default metadata
+            meta = models.ProductMetadata(
+                sku=sku,
+                box_size='medium',
+                dimensions_cm={'width': 20, 'height': 20, 'depth': 20},
+                max_stack=10
+            )
+            db.session.add(meta)
+        
+        # Check shelf compatibility
+        compatible = check_shelf_compatibility(shelf_number, meta.box_size)
+        if not compatible:
+            return jsonify({'error': 'Shelf not compatible with product size'}), 400
         
         # Check if shelf exists
         shelf = models.ShelfMapping.query.filter_by(shelf_number=shelf_number).first()
@@ -432,8 +475,6 @@ def assign_shelf():
             # Update existing shelf
             shelf.sku = sku
             shelf.product_name = product_name
-            shelf.shelf_size = shelf_size
-            shelf.max_capacity = max_capacity
             shelf.active = True
             shelf.last_updated = datetime.now()
         else:
@@ -442,21 +483,30 @@ def assign_shelf():
                 shelf_number=shelf_number,
                 sku=sku,
                 product_name=product_name,
-                shelf_size=shelf_size,
-                max_capacity=max_capacity,
                 current_stock=0,
                 active=True
             )
             db.session.add(shelf)
         
         db.session.commit()
-        flash(f'Shelf {shelf_number} assigned successfully', 'success')
+        return jsonify({'success': True, 'message': f'Shelf {shelf_number} assigned successfully'})
         
     except Exception as e:
         logging.error(f"Error assigning shelf: {e}")
-        flash('Error assigning shelf', 'error')
-    
-    return redirect(url_for('admin_shelves'))
+        return jsonify({'error': str(e)}), 500
+
+def check_shelf_compatibility(shelf_number, box_size):
+    """Check if shelf is compatible with product size"""
+    # Small products: shelves 1-15
+    # Medium products: shelves 16-30
+    # Large products: shelves 31-40
+    if box_size == 'small':
+        return 1 <= shelf_number <= 15
+    elif box_size == 'medium':
+        return 16 <= shelf_number <= 30
+    elif box_size == 'large':
+        return 31 <= shelf_number <= 40
+    return False
 
 @app.route('/admin/orders')
 def admin_orders():
@@ -506,6 +556,34 @@ def fulfill_order(order_id):
         flash('Error fulfilling order', 'error')
     
     return redirect(url_for('admin_orders'))
+
+@app.route('/admin/products/sync', methods=['POST'])
+def sync_products():
+    """Force sync products from Shopify"""
+    if not session.get('admin_logged_in'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        shopify_client.clear_cache()
+        products = shopify_client.get_products()
+        
+        return jsonify({
+            'status': 'success',
+            'products': len(products),
+            'message': f'Successfully synced {len(products)} products from Shopify'
+        })
+    except Exception as e:
+        logging.error(f"Error syncing products: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/orders/<path:filename>')
+def serve_order_file(filename):
+    """Serve order files for debugging"""
+    if not app.debug and not session.get('admin_logged_in'):
+        return "Unauthorized", 401
+    
+    from flask import send_from_directory
+    return send_from_directory('orders', filename)
 
 @app.route('/admin/health')
 def admin_health():

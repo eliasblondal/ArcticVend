@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Order Complete - Kiosk{% endblock %}
+
+{% block content %}
+<div class="kiosk-container">
+    <!-- Order Complete Screen -->
+    <div class="order-complete text-center">
+        <div class="success-animation">
+            <i class="fas fa-check-circle text-success" style="font-size: 8rem;"></i>
+        </div>
+        
+        <h1 class="display-4 mt-4">{{ 'order_complete'|translate|default('Order Complete!') }}</h1>
+        
+        <div class="order-details mt-4">
+            <h3>Order Number</h3>
+            <div class="order-number-display">
+                <span class="badge bg-primary fs-1 px-5 py-3">{{ order_number }}</span>
+            </div>
+            
+            <div class="mt-4">
+                <p class="lead">{{ 'thank_you_message'|translate|default('Thank you for your order!') }}</p>
+                <p class="text-muted">{{ 'dispensing_message'|translate|default('Your items will be dispensed shortly.') }}</p>
+            </div>
+            
+            {% if order_id %}
+            <div class="mt-3">
+                <small class="text-muted">Order ID: {{ order_id[:8] }}</small>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="mt-5">
+            <a href="{{ url_for('kiosk_index') }}" class="btn btn-success btn-lg">
+                <i class="fas fa-home me-2"></i>
+                {{ 'new_order'|translate|default('Start New Order') }}
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.order-complete {
+    padding: 50px 20px;
+}
+
+.success-animation {
+    animation: scaleIn 0.5s ease-out;
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.order-number-display {
+    margin: 20px 0;
+}
+</style>
+{% endblock %}

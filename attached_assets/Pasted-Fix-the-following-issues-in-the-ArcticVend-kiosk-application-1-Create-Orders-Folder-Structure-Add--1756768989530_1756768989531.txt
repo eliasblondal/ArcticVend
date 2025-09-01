@@ -1,0 +1,104 @@
+Fix the following issues in the ArcticVend kiosk application:
+1. Create Orders Folder Structure
+Add to app.py initialization:
+pythonimport os
+
+# Create order directories if they don't exist
+for folder in ['orders/pending', 'orders/processing', 'orders/completed']:
+    os.makedirs(folder, exist_ok=True)
+2. Fix Checkout Error
+The checkout process needs to properly create order files. Update the /kiosk/checkout route to:
+
+Create order in Shopify
+Write JSON file to orders/pending/
+Handle the file path correctly
+
+3. Redesign Shelf Management System
+Remove current manual input system and replace with:
+python# models.py - Update shelf_mappings table
+class ShelfMapping(db.Model):
+    shelf_number = db.Column(db.Integer, primary_key=True)
+    sku = db.Column(db.String(50))
+    product_name = db.Column(db.String(100))
+    current_stock = db.Column(db.Integer, default=0)
+    # Remove shelf_size and max_capacity - these come from product metadata
+    
+class ProductMetadata(db.Model):
+    sku = db.Column(db.String(50), primary_key=True)
+    box_size = db.Column(db.String(20))  # 'small', 'medium', 'large'
+    dimensions_cm = db.Column(db.JSON)  # {"width": 20, "height": 30, "depth": 15}
+    max_stack = db.Column(db.Integer)  # How many fit in one shelf
+New Shelf Assignment Flow:
+python@app.route('/admin/shelves/assign', methods=['GET', 'POST'])
+def assign_shelf():
+    # 1. Get products from Shopify location 109514817905
+    products = get_shopify_products()  # Already filtered by location
+    
+    # 2. Get empty shelves or shelves with same product
+    available_shelves = get_available_shelves(product_sku)
+    
+    # 3. Show only compatible shelves based on product box size
+    # Small products: shelves 1-15
+    # Medium products: shelves 16-30  
+    # Large products: shelves 31-40
+    
+    # 4. Visual shelf grid showing:
+    # - Empty shelves (green)
+    # - Compatible shelves with same product (yellow)
+    # - Incompatible shelves (red/disabled)
+4. Update Admin Shelves Template
+Create a visual shelf management interface:
+html<!-- templates/admin/shelves.html -->
+<div class="shelf-grid">
+  <!-- Product selector dropdown -->
+  <select id="product-selector">
+    <!-- Populated from Shopify location inventory -->
+  </select>
+  
+  <!-- Visual shelf grid -->
+  <div class="shelves-container">
+    {% for shelf in range(1, 41) %}
+    <div class="shelf-box" data-shelf="{{ shelf }}">
+      <div class="shelf-number">{{ shelf }}</div>
+      <div class="shelf-content">
+        <!-- Show current product or "Empty" -->
+      </div>
+      <button class="assign-btn" disabled>Assign</button>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+// When product selected, highlight compatible shelves
+// Enable assign buttons only for compatible empty/same-product shelves
+</script>
+5. Add Product Sync Route
+python@app.route('/admin/products/sync', methods=['POST'])
+def sync_products():
+    """Force sync products from Shopify"""
+    products = fetch_shopify_products(location_id='109514817905')
+    # Update local cache
+    return jsonify({'status': 'success', 'products': len(products)})
+6. Fix Static File Serving for Orders
+python@app.route('/orders/<path:filename>')
+def serve_order_file(filename):
+    """Serve order files for debugging"""
+    return send_from_directory('orders', filename)
+7. Add Environment Variables Template
+Create .env.example:
+SHOPIFY_STORE_URL=your-store.myshopify.com
+SHOPIFY_ACCESS_TOKEN=shppa_xxxxx
+SHOPIFY_LOCATION_ID=109514817905
+SECRET_KEY=generate-random-key-here
+FLASK_ENV=development
+Key Changes Summary:
+
+Auto-create orders folders on startup
+Fix checkout to properly write JSON files
+Replace manual shelf input with Shopify product selector
+Add visual shelf grid with compatibility checking
+Store product dimensions in metadata
+Only show compatible shelves based on product size
+
+Make the shelf assignment intuitive - click product, see compatible shelves light up, click shelf to assign. No manual SKU entry needed.
