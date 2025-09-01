@@ -1,0 +1,341 @@
+## Complete Prompt for Replit Agent: Icelandic Automated Retail Kiosk System
+
+Create a Flask-based web application for an automated alcohol retail kiosk system in Iceland. This system manages product dispensing through a robot, integrates with Shopify for inventory and orders, and provides both customer kiosk and admin management interfaces.
+
+### Core Architecture
+
+**Technology Stack:**
+- Flask web framework with SQLite database
+- Shopify API integration (GraphQL for queries, REST for orders)
+- JSON file-based order queue system
+- McDonald's-style touch kiosk interface
+- Bootstrap or Tailwind CSS for responsive UI
+
+### Database Schema
+
+```sql
+CREATE TABLE shelf_mappings (
+    shelf_number INTEGER PRIMARY KEY CHECK(shelf_number BETWEEN 1 AND 40),
+    sku VARCHAR(50),
+    product_name VARCHAR(100),
+    shelf_size VARCHAR(20) CHECK(shelf_size IN ('small', 'medium', 'large')),
+    current_stock INTEGER DEFAULT 0,
+    max_capacity INTEGER,
+    active BOOLEAN DEFAULT 1,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE order_queue (
+    id VARCHAR(36) PRIMARY KEY,
+    order_type VARCHAR(20) CHECK(order_type IN ('kiosk', 'wolt')),
+    shopify_order_id VARCHAR(50) UNIQUE,
+    shopify_order_number VARCHAR(20),
+    items JSON,
+    status VARCHAR(20) DEFAULT 'pending',
+    pickup_code VARCHAR(10),
+    test_order BOOLEAN DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP,
+    completed_at TIMESTAMP
+);
+
+CREATE TABLE system_health (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    component VARCHAR(50),
+    status VARCHAR(20),
+    message TEXT,
+    last_check TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    details JSON
+);
+
+CREATE TABLE test_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username VARCHAR(50),
+    pin VARCHAR(6),
+    active BOOLEAN DEFAULT 1
+);
+```
+
+### Shopify Integration Requirements
+
+**Product Management:**
+- Use GraphQL for fetching products from location_id: 109514817905 (kiosk1)
+- Query inventory levels, prices, images, and descriptions
+- Cache product data locally with 5-minute refresh
+- Only show products with available inventory at kiosk location
+
+**Order Creation:**
+- Create orders via REST API POST /admin/api/2024-01/orders.json
+- Set location_id: 109514817905 for inventory allocation
+- Mark orders as paid (financial_status: 'paid')
+- Add tag 'kiosk-order' for regular orders
+- Add tag 'wolt-pickup' for Wolt orders
+- Store Shopify order ID for fulfillment updates
+
+**Order Fulfillment:**
+- Update order fulfillment status when robot completes dispensing
+- Use REST API POST /admin/api/2024-01/orders/{order_id}/fulfillments.json
+- Set fulfillment_status to 'fulfilled'
+- Update inventory tracking
+
+**Wolt Order Handling:**
+- Identify Wolt orders by presence of shipping_address or 'wolt' tag
+- Don't auto-process these orders
+- Generate unique pickup codes
+- Require code verification at kiosk before dispensing
+
+### Routes and Interfaces
+
+```python
+# Customer Kiosk Routes
+@app.route('/kiosk')  # McDonald's-style main interface
+@app.route('/kiosk/products')  # Product grid with Shopify data
+@app.route('/kiosk/cart')  # Shopping cart management
+@app.route('/kiosk/checkout')  # Order creation and payment
+@app.route('/kiosk/wolt-pickup')  # Wolt pickup code entry
+@app.route('/kiosk/test-login')  # Test user login for development
+
+# Admin Management Routes
+@app.route('/admin')  # Main dashboard
+@app.route('/admin/login')  # Simple authentication
+@app.route('/admin/shelves')  # Shelf mapping management
+@app.route('/admin/shelves/assign')  # SKU to shelf assignment
+@app.route('/admin/orders')  # Order queue monitoring
+@app.route('/admin/orders/<id>/fulfill')  # Manual fulfillment
+@app.route('/admin/health')  # System health dashboard
+@app.route('/admin/products/sync')  # Force Shopify sync
+
+# API Endpoints for PLC/Bridge
+@app.route('/api/orders/next')  # Get next pending order
+@app.route('/api/orders/<id>/complete')  # Mark order completed
+@app.route('/api/orders/<id>/status')  # Update order status
+@app.route('/api/health')  # System health check
+```
+
+### McDonald's-Style Kiosk Interface
+
+**Design Requirements:**
+- Large touch-friendly product tiles (minimum 150x150px)
+- Product images from Shopify
+- Clear price display in ISK
+- Plus/minus buttons for quantity
+- Running cart sidebar showing items and total
+- "Start Order" welcome screen
+- "Checkout" with order summary
+- Order number display after completion
+- Icelandic language with English option
+
+**User Flow:**
+1. Welcome screen: "Tap to Start" / "Smelltu til að byrja"
+2. Product grid with categories if needed
+3. Add items with immediate cart update
+4. Checkout showing total and items
+5. Test payment simulation (for now)
+6. Order confirmation with number
+7. Return to welcome after 10 seconds
+
+### Admin Interface Features
+
+**Shelf Management:**
+- Visual grid of 40 shelves
+- Drag-and-drop product assignment
+- Shelf size configuration (small/medium/large)
+- Current stock display per shelf
+- Quick edit of shelf properties
+- Bulk assignment tools
+
+**Order Management:**
+- Real-time order queue display
+- Status indicators (pending/processing/completed)
+- Manual fulfillment option
+- Wolt pickup code management
+- Order history with filters
+
+**Health Dashboard:**
+- Shopify API connection status (green/yellow/red)
+- Last successful sync timestamp
+- Order queue size and processing rate
+- Recent errors log
+- PLC connection placeholder
+- Dobot status placeholder
+- Automatic refresh every 30 seconds
+
+### Order Processing Flow
+
+**Regular Kiosk Orders:**
+```python
+1. Customer selects products
+2. Create Shopify order with items
+3. Receive Shopify order ID
+4. Create local queue entry
+5. Write JSON file: /orders/pending/{timestamp}_{order_id}.json
+6. File contains: {
+    "order_id": "uuid",
+    "shopify_order_id": "12345",
+    "shelf_numbers": [15, 23, 31],
+    "items": [...],
+    "created_at": "2024-01-20T10:30:00"
+   }
+7. When completed: Update Shopify fulfillment
+```
+
+**Wolt Pickup Orders:**
+```python
+1. Customer enters 6-digit pickup code
+2. Verify code in database
+3. If valid, create dispensing order
+4. Process through same queue
+5. Mark as fulfilled in Shopify
+```
+
+### Test Mode Features
+
+**Test User System:**
+- Create test users with PIN codes
+- Bypass payment in test mode
+- Mark orders as test orders
+- Don't decrement real inventory for test orders
+
+**Development Helpers:**
+- Shopify connection tester
+- Sample data generator
+- Queue simulator
+- Mock Wolt order creator
+
+### File Structure
+
+```
+/app.py  # Main Flask application
+/config.py  # Configuration and credentials
+/shopify_client.py  # Shopify API wrapper
+/models.py  # SQLAlchemy models
+/templates/
+  /kiosk/
+    base.html
+    index.html
+    products.html
+    cart.html
+    checkout.html
+    wolt_pickup.html
+  /admin/
+    base.html
+    dashboard.html
+    shelves.html
+    orders.html
+    health.html
+/static/
+  /css/
+    kiosk.css  # McDonald's styling
+    admin.css
+  /js/
+    kiosk.js  # Touch interactions
+    admin.js  # Dashboard updates
+  /images/
+    logo.png
+/orders/
+  /pending/
+  /processing/
+  /completed/
+  /archive/
+/database.db
+/requirements.txt
+```
+
+### Environment Variables
+
+```env
+# Shopify Configuration
+SHOPIFY_STORE_URL=your-store.myshopify.com
+SHOPIFY_ACCESS_TOKEN=your-private-app-token
+SHOPIFY_API_VERSION=2024-01
+SHOPIFY_LOCATION_ID=109514817905
+SHOPIFY_WEBHOOK_SECRET=your-webhook-secret
+
+# Admin Configuration
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your-secure-password
+
+# App Configuration
+SECRET_KEY=your-flask-secret-key
+DEBUG=False
+DATABASE_URL=sqlite:///database.db
+
+# Future Integrations (placeholders)
+AUDKENNI_CLIENT_ID=placeholder
+AUDKENNI_CLIENT_SECRET=placeholder
+```
+
+### Key Implementation Details
+
+**Shopify GraphQL Queries:**
+```graphql
+# Get products with inventory at location
+query {
+  location(id: "gid://shopify/Location/109514817905") {
+    inventoryLevels(first: 100) {
+      edges {
+        node {
+          available
+          item {
+            sku
+            variant {
+              title
+              price
+              product {
+                title
+                images(first: 1) {
+                  edges {
+                    node {
+                      url
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Error Handling:**
+- Comprehensive logging to file and console
+- User-friendly error messages in Icelandic
+- Automatic retry for Shopify API calls
+- Queue persistence through crashes
+- Database transaction rollback on errors
+
+**Performance Optimizations:**
+- Product cache with timed refresh
+- Lazy loading of images
+- Database indexing on frequently queried fields
+- Pagination for order history
+- Async processing where applicable
+
+**Security Measures:**
+- Input validation on all forms
+- SQL injection prevention
+- XSS protection
+- CSRF tokens
+- Rate limiting on API endpoints
+- Secure session management
+
+### Future-Ready Features
+
+**Placeholders for:**
+- Auðkenni authentication integration
+- Real PLC status monitoring
+- Dobot robot state tracking
+- Payment gateway integration
+- Multi-language support system
+- Analytics and reporting module
+
+**Modular Design:**
+- Clean separation of concerns
+- Blueprint structure for easy extension
+- Configuration-driven behavior
+- Plugin architecture for new features
+
+Create a production-ready application with comprehensive error handling, logging, and documentation. Focus on reliability, maintainability, and user experience. The system should be able to run 24/7 with minimal supervision.
