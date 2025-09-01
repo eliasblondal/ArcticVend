@@ -7,7 +7,8 @@
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #f8f9fa;
+    color: #212529;
     margin: 0;
     padding: 0;
     overflow-x: hidden;
@@ -27,12 +28,12 @@ body {
 
 /* Header styles */
 .kiosk-header {
-    background: rgba(255, 255, 255, 0.95);
+    background: #ffffff;
     padding: 15px 25px;
     border-radius: 15px;
     margin-bottom: 20px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
+    border: 1px solid #dee2e6;
 }
 
 .kiosk-header h2 {
@@ -60,7 +61,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: #212529;
 }
 
 .welcome-content {
@@ -89,7 +90,7 @@ body {
 .brand-name {
     font-size: 2.5rem;
     font-weight: 300;
-    color: white;
+    color: #212529;
     margin: 0;
 }
 

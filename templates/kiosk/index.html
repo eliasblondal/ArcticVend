@@ -75,23 +75,5 @@
     
     setInterval(updateTime, 1000);
     updateTime();
-    
-    // Auto-refresh after 5 minutes of inactivity
-    let inactivityTimer;
-    const INACTIVITY_TIMEOUT = 300000; // 5 minutes
-    
-    function resetInactivityTimer() {
-        clearTimeout(inactivityTimer);
-        inactivityTimer = setTimeout(() => {
-            window.location.reload();
-        }, INACTIVITY_TIMEOUT);
-    }
-    
-    // Reset timer on any user interaction
-    document.addEventListener('click', resetInactivityTimer);
-    document.addEventListener('touchstart', resetInactivityTimer);
-    document.addEventListener('mousemove', resetInactivityTimer);
-    
-    resetInactivityTimer();
 </script>
 {% endblock %}
