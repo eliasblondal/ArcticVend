@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'checkout'|translate }} - Kiosk{% endblock %}
+
+{% block content %}
+<div class="kiosk-container">
+    <!-- Header Bar -->
+    <div class="kiosk-header">
+        <div class="row align-items-center">
+            <div class="col-2">
+                <a href="{{ url_for('kiosk_cart') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>{{ 'back'|translate }}
+                </a>
+            </div>
+            <div class="col-8 text-center">
+                <h2 class="m-0">{{ 'checkout'|translate }}</h2>
+            </div>
+            <div class="col-2">
+                <!-- Spacer -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+    
+    <!-- Checkout Content -->
+    <div class="checkout-container">
+        <div class="row">
+            <!-- Order Summary -->
+            <div class="col-md-7">
+                <div class="order-summary-card">
+                    <h4 class="section-title">
+                        <i class="fas fa-receipt me-2"></i>Yfirlit pöntunar
+                    </h4>
+                    
+                    <div class="order-items">
+                        {% for product_id, item in cart.items() %}
+                        <div class="order-item">
+                            <div class="row align-items-center">
+                                <div class="col-6">
+                                    <div class="item-details">
+                                        <h6 class="item-name">{{ item.title }}</h6>
+                                        <small class="text-muted">SKU: {{ item.sku }}</small>
+                                    </div>
+                                </div>
+                                <div class="col-2 text-center">
+                                    <span class="item-quantity">{{ item.quantity }}x</span>
+                                </div>
+                                <div class="col-2 text-center">
+                                    <span class="item-price">{{ item.price|int }} kr</span>
+                                </div>
+                                <div class="col-2 text-end">
+                                    <strong class="item-total">{{ (item.price * item.quantity)|int }} kr</strong>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="order-totals">
+                        <div class="row">
+                            <div class="col-6">
+                                <h5>{{ 'total'|translate }}:</h5>
+                            </div>
+                            <div class="col-6 text-end">
+                                <h5 class="total-amount">{{ total|int }} kr</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Payment Section -->
+            <div class="col-md-5">
+                <div class="payment-card">
+                    <h4 class="section-title">
+                        <i class="fas fa-credit-card me-2"></i>Greiðsla
+                    </h4>
+                    
+                    <!-- Test Mode Notice -->
+                    {% if session.test_mode %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-flask me-2"></i>
+                        <strong>Test Mode:</strong> Greiðsla verður ekki innheimt
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Payment Method Selection -->
+                    <div class="payment-methods">
+                        <div class="payment-method active" data-method="card">
+                            <i class="fas fa-credit-card payment-icon"></i>
+                            <span class="payment-label">Kredit/Debit</span>
+                            <i class="fas fa-check-circle payment-check"></i>
+                        </div>
+                        
+                        <!-- Future payment methods -->
+                        <div class="payment-method disabled" data-method="mobile">
+                            <i class="fas fa-mobile-alt payment-icon"></i>
+                            <span class="payment-label">Símareikningur</span>
+                            <small class="text-muted">(Kemur síðar)</small>
+                        </div>
+                        
+                        <div class="payment-method disabled" data-method="audkenni">
+                            <i class="fas fa-id-card payment-icon"></i>
+                            <span class="payment-label">Auðkenni</span>
+                            <small class="text-muted">(Kemur síðar)</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Payment Simulation -->
+                    <div class="payment-simulation">
+                        <div class="simulated-payment">
+                            <p class="text-center text-muted mb-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Greiðsla verður líkt eftir í þessu útgáfu
+                            </p>
+                            
+                            <div class="processing-indicator" id="paymentProcessing" style="display: none;">
+                                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                Vinnur úr greiðslu...
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Complete Order Button -->
+                    <form method="POST" action="{{ url_for('complete_order') }}" id="checkoutForm">
+                        <button type="submit" class="btn btn-success btn-lg w-100 complete-order-btn" id="completeOrderBtn">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Ljúka pöntun ({{ total|int }} kr)
+                        </button>
+                    </form>
+                    
+                    <!-- Security Notice -->
+                    <div class="security-notice mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-shield-alt me-1"></i>
+                            Örugg og dulkóðuð greiðsluvinnsla
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Payment method selection
+document.querySelectorAll('.payment-method:not(.disabled)').forEach(method => {
+    method.addEventListener('click', function() {
+        document.querySelectorAll('.payment-method').forEach(m => m.classList.remove('active'));
+        this.classList.add('active');
+    });
+});
+
+// Simulate payment processing
+document.getElementById('checkoutForm').addEventListener('submit', function(e) {
+    const btn = document.getElementById('completeOrderBtn');
+    const processing = document.getElementById('paymentProcessing');
+    
+    // Show processing state
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Vinnur úr greiðslu...';
+    processing.style.display = 'block';
+    
+    // Simulate payment delay (remove in production with real payment)
+    {% if not session.test_mode %}
+    e.preventDefault();
+    setTimeout(() => {
+        // Submit the form after delay
+        e.target.submit();
+    }, 2000);
+    {% endif %}
+});
+
+// Auto-focus on complete order button
+window.addEventListener('load', function() {
+    document.getElementById('completeOrderBtn').focus();
+});
+
+// Prevent double submission
+let formSubmitted = false;
+document.getElementById('checkoutForm').addEventListener('submit', function(e) {
+    if (formSubmitted) {
+        e.preventDefault();
+        return;
+    }
+    formSubmitted = true;
+});
+</script>
+{% endblock %}

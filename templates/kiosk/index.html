@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'welcome'|translate }} - Kiosk{% endblock %}
+
+{% block content %}
+<div class="kiosk-container">
+    <!-- Language Selector -->
+    <div class="language-selector">
+        <a href="{{ url_for('set_language', lang='is') }}" class="btn btn-outline-light btn-sm">
+            <i class="fas fa-globe"></i> IS
+        </a>
+        <a href="{{ url_for('set_language', lang='en') }}" class="btn btn-outline-light btn-sm">
+            <i class="fas fa-globe"></i> EN
+        </a>
+    </div>
+    
+    <!-- Welcome Screen -->
+    <div class="welcome-screen text-center">
+        <div class="welcome-content">
+            <h1 class="welcome-title">{{ 'welcome'|translate }}</h1>
+            
+            <!-- Logo/Branding Area -->
+            <div class="logo-area mb-5">
+                <i class="fas fa-store-alt kiosk-icon"></i>
+                <h2 class="brand-name">Icelandic Kiosk</h2>
+            </div>
+            
+            <!-- Main Start Button -->
+            <div class="start-button-container">
+                <a href="{{ url_for('kiosk_products') }}" class="btn btn-primary btn-start" id="startOrderBtn">
+                    <i class="fas fa-shopping-cart me-3"></i>
+                    {{ 'tap_to_start'|translate }}
+                </a>
+            </div>
+            
+            <!-- Secondary Options -->
+            <div class="secondary-options mt-4">
+                <div class="row justify-content-center">
+                    <div class="col-md-4">
+                        <a href="{{ url_for('wolt_pickup') }}" class="btn btn-outline-primary btn-lg w-100 mb-3">
+                            <i class="fas fa-motorcycle me-2"></i>
+                            Wolt {{ 'pickup_code'|translate }}
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{{ url_for('test_login') }}" class="btn btn-outline-secondary btn-lg w-100 mb-3">
+                            <i class="fas fa-cog me-2"></i>
+                            Test Mode
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- System Status Footer -->
+    <div class="system-status">
+        <div class="status-indicator">
+            <span class="status-dot status-online"></span>
+            <small class="text-muted">System Online</small>
+        </div>
+        <div class="current-time">
+            <small class="text-muted" id="currentTime"></small>
+        </div>
+    </div>
+</div>
+
+<!-- Auto-refresh for idle state -->
+<script>
+    // Update time every second
+    function updateTime() {
+        const now = new Date();
+        document.getElementById('currentTime').textContent = now.toLocaleString('is-IS');
+    }
+    
+    setInterval(updateTime, 1000);
+    updateTime();
+    
+    // Auto-refresh after 5 minutes of inactivity
+    let inactivityTimer;
+    const INACTIVITY_TIMEOUT = 300000; // 5 minutes
+    
+    function resetInactivityTimer() {
+        clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(() => {
+            window.location.reload();
+        }, INACTIVITY_TIMEOUT);
+    }
+    
+    // Reset timer on any user interaction
+    document.addEventListener('click', resetInactivityTimer);
+    document.addEventListener('touchstart', resetInactivityTimer);
+    document.addEventListener('mousemove', resetInactivityTimer);
+    
+    resetInactivityTimer();
+</script>
+{% endblock %}

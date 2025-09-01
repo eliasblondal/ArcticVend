@@ -1,0 +1,251 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Shelf Management - Kiosk Admin{% endblock %}
+{% block page_title %}Shelf Management{% endblock %}
+
+{% block content %}
+<div class="shelves-container">
+    <!-- Add/Edit Shelf Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5><i class="fas fa-plus me-2"></i>Assign Product to Shelf</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('assign_shelf') }}" class="row g-3">
+                <div class="col-md-2">
+                    <label for="shelf_number" class="form-label">Shelf Number</label>
+                    <select class="form-select" id="shelf_number" name="shelf_number" required>
+                        <option value="">Select Shelf</option>
+                        {% for i in range(1, 41) %}
+                        <option value="{{ i }}">Shelf {{ i }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="col-md-2">
+                    <label for="sku" class="form-label">Product SKU</label>
+                    <input type="text" class="form-control" id="sku" name="sku" required>
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="product_name" class="form-label">Product Name</label>
+                    <input type="text" class="form-control" id="product_name" name="product_name" required>
+                </div>
+                
+                <div class="col-md-2">
+                    <label for="shelf_size" class="form-label">Shelf Size</label>
+                    <select class="form-select" id="shelf_size" name="shelf_size" required>
+                        <option value="">Select Size</option>
+                        <option value="small">Small</option>
+                        <option value="medium">Medium</option>
+                        <option value="large">Large</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-2">
+                    <label for="max_capacity" class="form-label">Max Capacity</label>
+                    <input type="number" class="form-control" id="max_capacity" name="max_capacity" min="1" required>
+                </div>
+                
+                <div class="col-md-1">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-save"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Shelves Grid -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-warehouse me-2"></i>Shelf Layout (40 Shelves)</h5>
+                <div class="shelf-legend">
+                    <span class="badge bg-success me-2">Active</span>
+                    <span class="badge bg-secondary me-2">Empty</span>
+                    <span class="badge bg-warning me-2">Low Stock</span>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="shelves-grid">
+                {% for i in range(1, 41) %}
+                {% set shelf = shelves | selectattr("shelf_number", "equalto", i) | first %}
+                <div class="shelf-slot {{ 'active' if shelf and shelf.active else 'empty' }} {{ 'low-stock' if shelf and shelf.current_stock < (shelf.max_capacity * 0.2) else '' }}" 
+                     data-shelf="{{ i }}" 
+                     {% if shelf %}data-sku="{{ shelf.sku }}"{% endif %}>
+                    <div class="shelf-number">{{ i }}</div>
+                    {% if shelf and shelf.active %}
+                    <div class="shelf-content">
+                        <div class="shelf-sku">{{ shelf.sku }}</div>
+                        <div class="shelf-name">{{ shelf.product_name[:20] }}{% if shelf.product_name|length > 20 %}...{% endif %}</div>
+                        <div class="shelf-stock">
+                            <div class="stock-bar">
+                                <div class="stock-fill" style="width: {{ (shelf.current_stock / shelf.max_capacity * 100) if shelf.max_capacity > 0 else 0 }}%"></div>
+                            </div>
+                            <small>{{ shelf.current_stock }}/{{ shelf.max_capacity }}</small>
+                        </div>
+                        <div class="shelf-size">
+                            <span class="badge bg-info">{{ shelf.shelf_size.title() }}</span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="shelf-content">
+                        <div class="empty-shelf">
+                            <i class="fas fa-plus text-muted"></i>
+                            <small class="text-muted">Empty</small>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Shelf Details Table -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5><i class="fas fa-table me-2"></i>Shelf Details</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped" id="shelvesTable">
+                    <thead>
+                        <tr>
+                            <th>Shelf #</th>
+                            <th>SKU</th>
+                            <th>Product</th>
+                            <th>Size</th>
+                            <th>Stock</th>
+                            <th>Capacity</th>
+                            <th>Status</th>
+                            <th>Last Updated</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for shelf in shelves %}
+                        <tr>
+                            <td><strong>{{ shelf.shelf_number }}</strong></td>
+                            <td>{{ shelf.sku or '-' }}</td>
+                            <td>{{ shelf.product_name or '-' }}</td>
+                            <td>
+                                {% if shelf.shelf_size %}
+                                <span class="badge bg-info">{{ shelf.shelf_size.title() }}</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>{{ shelf.current_stock or 0 }}</td>
+                            <td>{{ shelf.max_capacity or 0 }}</td>
+                            <td>
+                                {% if shelf.active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if shelf.last_updated %}
+                                {{ shelf.last_updated.strftime('%Y-%m-%d %H:%M') }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary edit-shelf-btn" 
+                                        data-shelf="{{ shelf.shelf_number }}"
+                                        data-sku="{{ shelf.sku or '' }}"
+                                        data-name="{{ shelf.product_name or '' }}"
+                                        data-size="{{ shelf.shelf_size or '' }}"
+                                        data-capacity="{{ shelf.max_capacity or '' }}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Edit shelf functionality
+document.querySelectorAll('.edit-shelf-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const shelfNumber = this.dataset.shelf;
+        const sku = this.dataset.sku;
+        const name = this.dataset.name;
+        const size = this.dataset.size;
+        const capacity = this.dataset.capacity;
+        
+        // Populate form with current values
+        document.getElementById('shelf_number').value = shelfNumber;
+        document.getElementById('sku').value = sku;
+        document.getElementById('product_name').value = name;
+        document.getElementById('shelf_size').value = size;
+        document.getElementById('max_capacity').value = capacity;
+        
+        // Scroll to form
+        document.querySelector('.shelves-container').scrollIntoView();
+    });
+});
+
+// Shelf slot click to edit
+document.querySelectorAll('.shelf-slot').forEach(slot => {
+    slot.addEventListener('click', function() {
+        const shelfNumber = this.dataset.shelf;
+        const sku = this.dataset.sku || '';
+        
+        // Populate form
+        document.getElementById('shelf_number').value = shelfNumber;
+        document.getElementById('sku').value = sku;
+        
+        if (sku) {
+            // Find the shelf data and populate other fields
+            const editBtn = document.querySelector(`[data-shelf="${shelfNumber}"]`);
+            if (editBtn) {
+                document.getElementById('product_name').value = editBtn.dataset.name;
+                document.getElementById('shelf_size').value = editBtn.dataset.size;
+                document.getElementById('max_capacity').value = editBtn.dataset.capacity;
+            }
+        } else {
+            // Clear other fields for new assignment
+            document.getElementById('product_name').value = '';
+            document.getElementById('shelf_size').value = '';
+            document.getElementById('max_capacity').value = '';
+        }
+        
+        // Scroll to form
+        document.querySelector('.shelves-container').scrollIntoView();
+    });
+});
+
+// Make table sortable and filterable
+document.addEventListener('DOMContentLoaded', function() {
+    // Simple table filtering
+    const tableSearch = document.createElement('input');
+    tableSearch.type = 'text';
+    tableSearch.className = 'form-control mb-3';
+    tableSearch.placeholder = 'Search shelves...';
+    
+    const tableContainer = document.querySelector('#shelvesTable').parentElement;
+    tableContainer.insertBefore(tableSearch, document.querySelector('#shelvesTable'));
+    
+    tableSearch.addEventListener('input', function() {
+        const filter = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#shelvesTable tbody tr');
+        
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(filter) ? '' : 'none';
+        });
+    });
+});
+</script>
+{% endblock %}

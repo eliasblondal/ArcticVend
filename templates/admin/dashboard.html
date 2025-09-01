@@ -1,0 +1,189 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard - Kiosk Admin{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Quick Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-warehouse"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ active_shelves }}/{{ total_shelves }}</h3>
+                    <p>Active Shelves</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ pending_orders }}</h3>
+                    <p>Pending Orders</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-cog"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ processing_orders }}</h3>
+                    <p>Processing</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 class="text-success">Online</h3>
+                    <p>System Status</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Orders -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-list-alt me-2"></i>Recent Orders</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_orders %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Order #</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in recent_orders %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ order.shopify_order_number or order.id[:8] }}</strong>
+                                        {% if order.test_order %}
+                                        <span class="badge bg-warning ms-2">TEST</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if order.order_type == 'wolt' %}
+                                        <i class="fas fa-motorcycle me-1"></i>Wolt
+                                        {% else %}
+                                        <i class="fas fa-store me-1"></i>Kiosk
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set status_class = {
+                                            'pending': 'warning',
+                                            'processing': 'info',
+                                            'completed': 'success',
+                                            'failed': 'danger'
+                                        } %}
+                                        <span class="badge bg-{{ status_class.get(order.status, 'secondary') }}">
+                                            {{ order.status.title() }}
+                                        </span>
+                                    </td>
+                                    <td>{{ order.created_at.strftime('%H:%M') }}</td>
+                                    <td>
+                                        {% if order.status == 'pending' %}
+                                        <form method="POST" action="{{ url_for('fulfill_order', order_id=order.id) }}" style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-success">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-3x mb-3"></i>
+                        <p>No recent orders</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('admin_health') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-heartbeat me-2"></i>System Health
+                        </a>
+                        <a href="{{ url_for('admin_shelves') }}" class="btn btn-outline-info">
+                            <i class="fas fa-warehouse me-2"></i>Manage Shelves
+                        </a>
+                        <a href="{{ url_for('admin_orders') }}" class="btn btn-outline-success">
+                            <i class="fas fa-list-alt me-2"></i>View All Orders
+                        </a>
+                        <form method="POST" action="{{ url_for('force_sync') }}">
+                            <button type="submit" class="btn btn-outline-warning w-100">
+                                <i class="fas fa-sync me-2"></i>Sync Products
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- System Info -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6><i class="fas fa-info-circle me-2"></i>System Info</h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted">
+                        <div class="mb-2">
+                            <strong>Last Update:</strong><br>
+                            {{ moment().format('YYYY-MM-DD HH:mm:ss') }}
+                        </div>
+                        <div class="mb-2">
+                            <strong>Active Since:</strong><br>
+                            System Online
+                        </div>
+                        <div>
+                            <strong>Version:</strong><br>
+                            v1.0.0
+                        </div>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-refresh dashboard every 30 seconds
+setInterval(() => {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}

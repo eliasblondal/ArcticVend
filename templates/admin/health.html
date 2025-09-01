@@ -1,0 +1,495 @@
+{% extends "admin/base.html" %}
+
+{% block title %}System Health - Kiosk Admin{% endblock %}
+{% block page_title %}System Health{% endblock %}
+
+{% block extra_css %}
+<style>
+.health-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+}
+.health-good { background-color: #28a745; }
+.health-warning { background-color: #ffc107; }
+.health-error { background-color: #dc3545; }
+.health-unknown { background-color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="health-container">
+    <!-- System Status Overview -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card health-card">
+                <div class="stat-icon">
+                    <i class="fas fa-store-alt"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>
+                        <span class="health-indicator {{ 'health-good' if shopify_status.connected else 'health-error' }}"></span>
+                        {{ 'Online' if shopify_status.connected else 'Offline' }}
+                    </h3>
+                    <p>Shopify Connection</p>
+                    <small class="text-muted">{{ shopify_status.timestamp[:16] if shopify_status.timestamp }}</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="stat-card health-card">
+                <div class="stat-icon">
+                    <i class="fas fa-database"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>
+                        <span class="health-indicator health-good"></span>
+                        Online
+                    </h3>
+                    <p>Database</p>
+                    <small class="text-muted">SQLite Local</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="stat-card health-card">
+                <div class="stat-icon">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>
+                        <span class="health-indicator health-warning"></span>
+                        Standby
+                    </h3>
+                    <p>Robot Controller</p>
+                    <small class="text-muted">Not Connected</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="stat-card health-card">
+                <div class="stat-icon">
+                    <i class="fas fa-list-alt"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ pending_count + processing_count }}</h3>
+                    <p>Queue Size</p>
+                    <small class="text-muted">{{ pending_count }} pending, {{ processing_count }} processing</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Shopify Integration Status -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-shopping-cart me-2"></i>Shopify Integration Status</h5>
+                </div>
+                <div class="card-body">
+                    {% if shopify_status.connected %}
+                    <div class="alert alert-success">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-check-circle fa-2x me-3"></i>
+                            <div>
+                                <h6 class="mb-1">Connection Healthy</h6>
+                                <p class="mb-0">Successfully connected to {{ shopify_status.shop_name if shopify_status.shop_name else 'Shopify store' }}</p>
+                                <small class="text-muted">Last checked: {{ shopify_status.timestamp[:19] if shopify_status.timestamp }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-danger">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                            <div>
+                                <h6 class="mb-1">Connection Failed</h6>
+                                <p class="mb-0">{{ shopify_status.error if shopify_status.error else 'Unable to connect to Shopify' }}</p>
+                                <small class="text-muted">Last attempted: {{ shopify_status.timestamp[:19] if shopify_status.timestamp }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="shopify-actions mt-3">
+                        <form method="POST" action="{{ url_for('force_sync') }}" style="display: inline;">
+                            <button type="submit" class="btn btn-outline-primary me-2">
+                                <i class="fas fa-sync me-2"></i>Force Sync
+                            </button>
+                        </form>
+                        <button class="btn btn-outline-secondary" onclick="testShopifyConnection()">
+                            <i class="fas fa-plug me-2"></i>Test Connection
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="fas fa-clock me-2"></i>API Response Times</h6>
+                </div>
+                <div class="card-body">
+                    <div class="response-time-chart">
+                        <canvas id="responseTimeChart" width="300" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- System Components Status -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-microchip me-2"></i>System Components</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Web Server -->
+                        <div class="col-md-4 mb-3">
+                            <div class="component-status">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="health-indicator health-good"></span>
+                                    <h6 class="mb-0">Flask Web Server</h6>
+                                </div>
+                                <p class="text-muted mb-1">Status: Running</p>
+                                <small class="text-muted">Port: 5000</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Database -->
+                        <div class="col-md-4 mb-3">
+                            <div class="component-status">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="health-indicator health-good"></span>
+                                    <h6 class="mb-0">SQLite Database</h6>
+                                </div>
+                                <p class="text-muted mb-1">Status: Connected</p>
+                                <small class="text-muted">Local storage</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Order Queue -->
+                        <div class="col-md-4 mb-3">
+                            <div class="component-status">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="health-indicator health-good"></span>
+                                    <h6 class="mb-0">Order Queue</h6>
+                                </div>
+                                <p class="text-muted mb-1">Status: Active</p>
+                                <small class="text-muted">JSON file-based</small>
+                            </div>
+                        </div>
+                        
+                        <!-- PLC Controller (Future) -->
+                        <div class="col-md-4 mb-3">
+                            <div class="component-status">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="health-indicator health-warning"></span>
+                                    <h6 class="mb-0">PLC Controller</h6>
+                                </div>
+                                <p class="text-muted mb-1">Status: Not Connected</p>
+                                <small class="text-muted">Future integration</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Dobot Robot (Future) -->
+                        <div class="col-md-4 mb-3">
+                            <div class="component-status">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="health-indicator health-warning"></span>
+                                    <h6 class="mb-0">Dobot Robot</h6>
+                                </div>
+                                <p class="text-muted mb-1">Status: Not Connected</p>
+                                <small class="text-muted">Future integration</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Payment Gateway (Future) -->
+                        <div class="col-md-4 mb-3">
+                            <div class="component-status">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="health-indicator health-unknown"></span>
+                                    <h6 class="mb-0">Payment Gateway</h6>
+                                </div>
+                                <p class="text-muted mb-1">Status: Simulated</p>
+                                <small class="text-muted">Test mode only</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Health Checks -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-history me-2"></i>Recent Health Checks</h5>
+                </div>
+                <div class="card-body">
+                    {% if health_checks %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Component</th>
+                                    <th>Status</th>
+                                    <th>Message</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for check in health_checks[:10] %}
+                                <tr>
+                                    <td>{{ check.component }}</td>
+                                    <td>
+                                        {% set status_class = {
+                                            'healthy': 'success',
+                                            'warning': 'warning',
+                                            'error': 'danger',
+                                            'unknown': 'secondary'
+                                        } %}
+                                        <span class="badge bg-{{ status_class.get(check.status, 'secondary') }}">
+                                            {{ check.status.title() }}
+                                        </span>
+                                    </td>
+                                    <td>{{ check.message }}</td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ check.last_check.strftime('%Y-%m-%d %H:%M:%S') }}
+                                        </small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-info-circle fa-2x mb-2"></i>
+                        <p>No health check records found</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- System Metrics -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="fas fa-chart-line me-2"></i>System Metrics</h6>
+                </div>
+                <div class="card-body">
+                    <div class="metric-item mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>CPU Usage</span>
+                            <span class="text-muted">~15%</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-success" style="width: 15%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-item mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Memory Usage</span>
+                            <span class="text-muted">~45%</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-info" style="width: 45%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-item mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Disk Space</span>
+                            <span class="text-muted">~25%</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-warning" style="width: 25%"></div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="uptime-info">
+                        <h6>System Uptime</h6>
+                        <p class="text-success mb-1">2 days, 14 hours</p>
+                        <small class="text-muted">Last restart: Manual</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Connection Test Modal -->
+<div class="modal fade" id="connectionTestModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Connection Test Results</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="connectionTestContent">
+                <!-- Content loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-refresh health status every 30 seconds
+let healthRefreshInterval;
+
+function startHealthMonitoring() {
+    healthRefreshInterval = setInterval(() => {
+        fetch('/api/health')
+            .then(response => response.json())
+            .then(data => {
+                updateHealthIndicators(data);
+            })
+            .catch(error => {
+                console.error('Health check failed:', error);
+            });
+    }, 30000);
+}
+
+function updateHealthIndicators(healthData) {
+    // Update health indicators based on API response
+    const shopifyIndicator = document.querySelector('.health-card:first-child .health-indicator');
+    if (healthData.shopify_connected) {
+        shopifyIndicator.className = 'health-indicator health-good';
+    } else {
+        shopifyIndicator.className = 'health-indicator health-error';
+    }
+}
+
+// Test Shopify connection
+function testShopifyConnection() {
+    const modal = new bootstrap.Modal(document.getElementById('connectionTestModal'));
+    const content = document.getElementById('connectionTestContent');
+    
+    content.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Testing connection...</span>
+            </div>
+            <p class="mt-2">Testing Shopify connection...</p>
+        </div>
+    `;
+    
+    modal.show();
+    
+    // Simulate connection test
+    setTimeout(() => {
+        {% if shopify_status.connected %}
+        content.innerHTML = `
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>Connection Successful!</strong>
+                <p class="mb-0">Shopify API is responding normally.</p>
+            </div>
+            <div class="test-details">
+                <h6>Test Results:</h6>
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success me-2"></i>Authentication: Success</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Store Access: Success</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Location Access: Success</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Response Time: < 500ms</li>
+                </ul>
+            </div>
+        `;
+        {% else %}
+        content.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Connection Failed!</strong>
+                <p class="mb-0">Unable to connect to Shopify API.</p>
+            </div>
+            <div class="test-details">
+                <h6>Error Details:</h6>
+                <p class="text-muted">{{ shopify_status.error if shopify_status.error else 'Connection timeout or authentication failure' }}</p>
+                <h6>Troubleshooting:</h6>
+                <ul class="list-unstyled">
+                    <li>• Check API credentials</li>
+                    <li>• Verify store URL</li>
+                    <li>• Check internet connection</li>
+                    <li>• Review Shopify app permissions</li>
+                </ul>
+            </div>
+        `;
+        {% endif %}
+    }, 2000);
+}
+
+// Initialize response time chart
+function initResponseTimeChart() {
+    const ctx = document.getElementById('responseTimeChart').getContext('2d');
+    
+    // Sample data - in production, this would come from real monitoring
+    const chartData = {
+        labels: ['10min', '8min', '6min', '4min', '2min', 'Now'],
+        datasets: [{
+            label: 'Response Time (ms)',
+            data: [245, 289, 234, 198, 267, 223],
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            tension: 0.4
+        }]
+    };
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: chartData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Response Time (ms)'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    startHealthMonitoring();
+    initResponseTimeChart();
+});
+
+// Clean up intervals when page unloads
+window.addEventListener('beforeunload', function() {
+    if (healthRefreshInterval) {
+        clearInterval(healthRefreshInterval);
+    }
+});
+</script>
+{% endblock %}

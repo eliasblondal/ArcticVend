@@ -1,0 +1,375 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Order Management - Kiosk Admin{% endblock %}
+{% block page_title %}Order Management{% endblock %}
+
+{% block content %}
+<div class="orders-container">
+    <!-- Filter Bar -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <label class="form-label">Filter by Status:</label>
+                    <select class="form-select" onchange="window.location.href='{{ url_for('admin_orders') }}?status=' + this.value + '&page=1'">
+                        <option value="all" {{ 'selected' if status_filter == 'all' }}>All Orders</option>
+                        <option value="pending" {{ 'selected' if status_filter == 'pending' }}>Pending</option>
+                        <option value="processing" {{ 'selected' if status_filter == 'processing' }}>Processing</option>
+                        <option value="completed" {{ 'selected' if status_filter == 'completed' }}>Completed</option>
+                        <option value="failed" {{ 'selected' if status_filter == 'failed' }}>Failed</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Order Type:</label>
+                    <select class="form-select" id="typeFilter">
+                        <option value="all">All Types</option>
+                        <option value="kiosk">Kiosk Orders</option>
+                        <option value="wolt">Wolt Pickups</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Search:</label>
+                    <input type="text" class="form-control" id="orderSearch" placeholder="Order number, SKU...">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-secondary" onclick="location.reload()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="exportOrders()">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Orders Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-list-alt me-2"></i>Orders</h5>
+                <div class="order-stats">
+                    <span class="badge bg-warning me-2">Pending: {{ orders.items | selectattr("status", "equalto", "pending") | list | length }}</span>
+                    <span class="badge bg-info me-2">Processing: {{ orders.items | selectattr("status", "equalto", "processing") | list | length }}</span>
+                    <span class="badge bg-success">Completed: {{ orders.items | selectattr("status", "equalto", "completed") | list | length }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if orders.items %}
+            <div class="table-responsive">
+                <table class="table table-hover" id="ordersTable">
+                    <thead>
+                        <tr>
+                            <th>Order #</th>
+                            <th>Type</th>
+                            <th>Items</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Processing Time</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders.items %}
+                        <tr class="order-row" 
+                            data-status="{{ order.status }}" 
+                            data-type="{{ order.order_type }}"
+                            data-order="{{ order.shopify_order_number or order.id }}">
+                            <td>
+                                <div class="order-info">
+                                    <strong>{{ order.shopify_order_number or order.id[:8] }}</strong>
+                                    {% if order.test_order %}
+                                    <span class="badge bg-warning ms-2">TEST</span>
+                                    {% endif %}
+                                    {% if order.pickup_code %}
+                                    <div class="pickup-code">
+                                        <small class="text-muted">Code: {{ order.pickup_code }}</small>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                {% if order.order_type == 'wolt' %}
+                                <span class="order-type wolt">
+                                    <i class="fas fa-motorcycle me-1"></i>Wolt
+                                </span>
+                                {% else %}
+                                <span class="order-type kiosk">
+                                    <i class="fas fa-store me-1"></i>Kiosk
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="order-items">
+                                    {% set items = order.items | from_json if order.items else [] %}
+                                    {% for item in items %}
+                                    <div class="item-summary">
+                                        <small>{{ item.quantity }}x {{ item.title[:20] }}{% if item.title|length > 20 %}...{% endif %}</small>
+                                    </div>
+                                    {% endfor %}
+                                    <small class="text-muted">{{ items|length }} item(s)</small>
+                                </div>
+                            </td>
+                            <td>
+                                {% set status_class = {
+                                    'pending': 'warning',
+                                    'processing': 'info',
+                                    'completed': 'success',
+                                    'failed': 'danger'
+                                } %}
+                                <span class="badge bg-{{ status_class.get(order.status, 'secondary') }}">
+                                    {{ order.status.title() }}
+                                </span>
+                                {% if order.status == 'processing' %}
+                                <div class="processing-indicator">
+                                    <div class="spinner-border spinner-border-sm text-info mt-1" role="status"></div>
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="time-info">
+                                    <strong>{{ order.created_at.strftime('%H:%M:%S') }}</strong>
+                                    <div class="date-info">
+                                        <small class="text-muted">{{ order.created_at.strftime('%Y-%m-%d') }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="timing-info">
+                                    {% if order.completed_at %}
+                                    {% set duration = (order.completed_at - order.created_at).total_seconds() %}
+                                    <span class="completion-time">{{ "%.1f"|format(duration) }}s</span>
+                                    {% elif order.processed_at %}
+                                    {% set duration = (moment.utcnow() - order.processed_at).total_seconds() %}
+                                    <span class="processing-time">{{ "%.0f"|format(duration) }}s</span>
+                                    {% else %}
+                                    {% set wait_time = (moment.utcnow() - order.created_at).total_seconds() %}
+                                    <span class="wait-time text-muted">{{ "%.0f"|format(wait_time) }}s wait</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="order-actions">
+                                    {% if order.status == 'pending' %}
+                                    <form method="POST" action="{{ url_for('fulfill_order', order_id=order.id) }}" style="display: inline;">
+                                        <button type="submit" class="btn btn-sm btn-success" title="Fulfill Order">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            onclick="viewOrderDetails('{{ order.id }}')" 
+                                            title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    
+                                    {% if order.status in ['failed', 'completed'] %}
+                                    <button class="btn btn-sm btn-outline-danger" 
+                                            onclick="archiveOrder('{{ order.id }}')" 
+                                            title="Archive Order">
+                                        <i class="fas fa-archive"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if orders.pages > 1 %}
+            <nav aria-label="Orders pagination" class="mt-3">
+                <ul class="pagination justify-content-center">
+                    {% if orders.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('admin_orders', status=status_filter, page=orders.prev_num) }}">Previous</a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for page_num in orders.iter_pages() %}
+                        {% if page_num %}
+                            {% if page_num != orders.page %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin_orders', status=status_filter, page=page_num) }}">{{ page_num }}</a>
+                            </li>
+                            {% else %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                            {% endif %}
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if orders.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('admin_orders', status=status_filter, page=orders.next_num) }}">Next</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            
+            {% else %}
+            <!-- Empty State -->
+            <div class="empty-orders text-center py-5">
+                <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                <h4>No Orders Found</h4>
+                <p class="text-muted">
+                    {% if status_filter != 'all' %}
+                    No orders with status "{{ status_filter }}" found.
+                    {% else %}
+                    No orders have been created yet.
+                    {% endif %}
+                </p>
+                <a href="{{ url_for('admin_orders', status='all') }}" class="btn btn-outline-primary">
+                    View All Orders
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Order Details Modal -->
+<div class="modal fade" id="orderDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Order Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="orderDetailsContent">
+                <!-- Content loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Order filtering
+document.getElementById('typeFilter').addEventListener('change', function() {
+    filterOrders();
+});
+
+document.getElementById('orderSearch').addEventListener('input', function() {
+    filterOrders();
+});
+
+function filterOrders() {
+    const typeFilter = document.getElementById('typeFilter').value;
+    const searchFilter = document.getElementById('orderSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('.order-row');
+    
+    rows.forEach(row => {
+        const type = row.dataset.type;
+        const orderText = row.textContent.toLowerCase();
+        
+        const typeMatch = typeFilter === 'all' || type === typeFilter;
+        const searchMatch = searchFilter === '' || orderText.includes(searchFilter);
+        
+        row.style.display = typeMatch && searchMatch ? '' : 'none';
+    });
+}
+
+// View order details
+function viewOrderDetails(orderId) {
+    // In a real implementation, this would fetch order details via API
+    const modal = new bootstrap.Modal(document.getElementById('orderDetailsModal'));
+    document.getElementById('orderDetailsContent').innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    `;
+    modal.show();
+    
+    // Simulate loading order details
+    setTimeout(() => {
+        document.getElementById('orderDetailsContent').innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                Order details for ID: ${orderId}
+            </div>
+            <p>Full order details would be loaded here from the API endpoint.</p>
+        `;
+    }, 1000);
+}
+
+// Archive order
+function archiveOrder(orderId) {
+    if (confirm('Are you sure you want to archive this order?')) {
+        // Implementation would call archive API endpoint
+        console.log('Archiving order:', orderId);
+    }
+}
+
+// Export orders
+function exportOrders() {
+    // Implementation would call export API endpoint
+    console.log('Exporting orders...');
+}
+
+// Auto-refresh every 30 seconds
+setInterval(() => {
+    const hasProcessingOrders = document.querySelectorAll('[data-status="processing"]').length > 0;
+    if (hasProcessingOrders) {
+        location.reload();
+    }
+}, 30000);
+
+// Add template filter for JSON parsing
+{% set ns = namespace(found=false) %}
+{% for order in orders.items %}
+    {% if not ns.found %}
+        <script>
+        // Template filter for JSON parsing
+        const jsonFilter = {
+            from_json: function(jsonString) {
+                try {
+                    return JSON.parse(jsonString || '[]');
+                } catch (e) {
+                    return [];
+                }
+            }
+        };
+        
+        // Apply to existing content
+        document.addEventListener('DOMContentLoaded', function() {
+            // Update timing displays
+            updateTimings();
+            setInterval(updateTimings, 1000);
+        });
+        
+        function updateTimings() {
+            document.querySelectorAll('.wait-time, .processing-time').forEach(el => {
+                // Update wait/processing times in real-time
+                const orderRow = el.closest('.order-row');
+                const status = orderRow.dataset.status;
+                
+                if (status === 'pending' || status === 'processing') {
+                    // In a real app, you'd calculate from data attributes
+                    // This is a simplified version
+                }
+            });
+        }
+        </script>
+        {% set ns.found = true %}
+    {% endif %}
+{% endfor %}
+</script>
+{% endblock %}

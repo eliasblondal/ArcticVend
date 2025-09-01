@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Wolt {{ 'pickup_code'|translate }} - Kiosk{% endblock %}
+
+{% block content %}
+<div class="kiosk-container">
+    <!-- Header Bar -->
+    <div class="kiosk-header">
+        <div class="row align-items-center">
+            <div class="col-2">
+                <a href="{{ url_for('kiosk_index') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>{{ 'back'|translate }}
+                </a>
+            </div>
+            <div class="col-8 text-center">
+                <h2 class="m-0">
+                    <i class="fas fa-motorcycle me-2"></i>
+                    Wolt Sóttur
+                </h2>
+            </div>
+            <div class="col-2">
+                <!-- Spacer -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+    
+    <!-- Pickup Code Entry -->
+    <div class="pickup-container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="pickup-card">
+                    <!-- Instructions -->
+                    <div class="pickup-instructions text-center mb-4">
+                        <div class="pickup-icon mb-3">
+                            <i class="fas fa-mobile-alt fa-3x text-primary"></i>
+                        </div>
+                        <h4>Sláðu inn sóttkóða</h4>
+                        <p class="text-muted">
+                            Finndu 6-stafa kóðann í Wolt appinu þínu eða í staðfestingartölvupóstinum.
+                        </p>
+                    </div>
+                    
+                    <!-- Pickup Code Form -->
+                    <form method="POST" action="{{ url_for('verify_pickup') }}" id="pickupForm">
+                        <div class="pickup-code-input">
+                            <div class="mb-4">
+                                <label for="pickup_code" class="form-label">{{ 'pickup_code'|translate }}:</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control form-control-lg text-center pickup-code-field" 
+                                    id="pickup_code" 
+                                    name="pickup_code" 
+                                    placeholder="123456"
+                                    maxlength="6"
+                                    pattern="[0-9]{6}"
+                                    required
+                                    autocomplete="off"
+                                >
+                                <div class="form-text">Sláðu inn 6-stafa tölukóða</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Submit Button -->
+                        <div class="pickup-submit">
+                            <button type="submit" class="btn btn-primary btn-lg w-100" id="verifyBtn">
+                                <i class="fas fa-check-circle me-2"></i>
+                                Staðfesta kóða
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Help Section -->
+                    <div class="pickup-help mt-4">
+                        <div class="help-section">
+                            <h6><i class="fas fa-question-circle me-2"></i>Finnur þú ekki kóðann?</h6>
+                            <ul class="help-list">
+                                <li>Athugaðu Wolt appið þitt</li>
+                                <li>Skoðaðu staðfestingartölvupóstinn</li>
+                                <li>Hafðu samband við Wolt þjónustuver</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-contact mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-phone me-1"></i>
+                                Þjónustuver: 581-0581
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Virtual Keypad (Touch-friendly) -->
+    <div class="virtual-keypad mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-4">
+                <div class="keypad-container">
+                    <div class="keypad-title text-center mb-3">
+                        <small class="text-muted">Snertiskjáborð</small>
+                    </div>
+                    <div class="keypad-grid">
+                        <div class="row g-2">
+                            {% for digit in range(1, 10) %}
+                            <div class="col-4">
+                                <button type="button" class="btn btn-outline-secondary btn-lg w-100 keypad-btn" data-digit="{{ digit }}">
+                                    {{ digit }}
+                                </button>
+                            </div>
+                            {% endfor %}
+                            <div class="col-4">
+                                <button type="button" class="btn btn-outline-danger btn-lg w-100 keypad-btn" data-action="clear">
+                                    <i class="fas fa-backspace"></i>
+                                </button>
+                            </div>
+                            <div class="col-4">
+                                <button type="button" class="btn btn-outline-secondary btn-lg w-100 keypad-btn" data-digit="0">
+                                    0
+                                </button>
+                            </div>
+                            <div class="col-4">
+                                <button type="button" class="btn btn-outline-success btn-lg w-100 keypad-btn" data-action="enter">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-focus on pickup code input
+document.getElementById('pickup_code').focus();
+
+// Virtual keypad functionality
+const pickupCodeInput = document.getElementById('pickup_code');
+const keypadBtns = document.querySelectorAll('.keypad-btn');
+
+keypadBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+        const digit = this.dataset.digit;
+        const action = this.dataset.action;
+        
+        if (digit) {
+            // Add digit if under 6 characters
+            if (pickupCodeInput.value.length < 6) {
+                pickupCodeInput.value += digit;
+                pickupCodeInput.focus();
+            }
+        } else if (action === 'clear') {
+            // Remove last character
+            pickupCodeInput.value = pickupCodeInput.value.slice(0, -1);
+            pickupCodeInput.focus();
+        } else if (action === 'enter') {
+            // Submit form if 6 digits entered
+            if (pickupCodeInput.value.length === 6) {
+                document.getElementById('pickupForm').submit();
+            }
+        }
+        
+        // Auto-submit when 6 digits entered
+        if (pickupCodeInput.value.length === 6) {
+            setTimeout(() => {
+                document.getElementById('verifyBtn').focus();
+            }, 500);
+        }
+    });
+});
+
+// Only allow numbers in input
+pickupCodeInput.addEventListener('input', function(e) {
+    this.value = this.value.replace(/[^0-9]/g, '');
+    if (this.value.length > 6) {
+        this.value = this.value.slice(0, 6);
+    }
+    
+    // Auto-submit when 6 digits entered via keyboard
+    if (this.value.length === 6) {
+        setTimeout(() => {
+            document.getElementById('verifyBtn').focus();
+        }, 500);
+    }
+});
+
+// Form submission handling
+document.getElementById('pickupForm').addEventListener('submit', function(e) {
+    const code = pickupCodeInput.value;
+    const btn = document.getElementById('verifyBtn');
+    
+    if (code.length !== 6) {
+        e.preventDefault();
+        alert('Vinsamlegast sláðu inn 6-stafa kóða');
+        pickupCodeInput.focus();
+        return;
+    }
+    
+    // Show processing state
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Staðfestir...';
+});
+
+// Touch feedback for keypad buttons
+keypadBtns.forEach(btn => {
+    btn.addEventListener('touchstart', function() {
+        this.style.transform = 'scale(0.95)';
+    });
+    
+    btn.addEventListener('touchend', function() {
+        this.style.transform = 'scale(1)';
+    });
+});
+</script>
+{% endblock %}

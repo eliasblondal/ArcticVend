@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Test Mode - Kiosk{% endblock %}
+
+{% block content %}
+<div class="kiosk-container">
+    <!-- Header Bar -->
+    <div class="kiosk-header">
+        <div class="row align-items-center">
+            <div class="col-2">
+                <a href="{{ url_for('kiosk_index') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>{{ 'back'|translate }}
+                </a>
+            </div>
+            <div class="col-8 text-center">
+                <h2 class="m-0">
+                    <i class="fas fa-flask me-2"></i>
+                    Test Mode
+                </h2>
+            </div>
+            <div class="col-2">
+                <!-- Spacer -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+    
+    <!-- Test Login Form -->
+    <div class="test-login-container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="test-login-card">
+                    <!-- Warning Notice -->
+                    <div class="alert alert-warning text-center">
+                        <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                        <h5>Þróunarstilling</h5>
+                        <p class="mb-0">Þessi stilling er eingöngu fyrir þróun og prófanir</p>
+                    </div>
+                    
+                    <!-- Login Form -->
+                    <form method="POST" action="{{ url_for('authenticate_test') }}" id="testLoginForm">
+                        <div class="mb-4">
+                            <label for="username" class="form-label">Notandanafn:</label>
+                            <input 
+                                type="text" 
+                                class="form-control form-control-lg" 
+                                id="username" 
+                                name="username" 
+                                placeholder="Sláðu inn notandanafn"
+                                required
+                                autocomplete="username"
+                            >
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="pin" class="form-label">PIN kóði:</label>
+                            <input 
+                                type="password" 
+                                class="form-control form-control-lg text-center" 
+                                id="pin" 
+                                name="pin" 
+                                placeholder="123456"
+                                maxlength="6"
+                                pattern="[0-9]{6}"
+                                required
+                                autocomplete="current-password"
+                            >
+                            <div class="form-text">6-stafa PIN kóði</div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-warning btn-lg w-100" id="loginBtn">
+                            <i class="fas fa-sign-in-alt me-2"></i>
+                            Skrá inn í test stillingu
+                        </button>
+                    </form>
+                    
+                    <!-- Test User Info -->
+                    <div class="test-info mt-4">
+                        <h6><i class="fas fa-info-circle me-2"></i>Test notendur:</h6>
+                        <div class="test-users">
+                            <div class="test-user-item">
+                                <code>developer / 123456</code>
+                                <small class="text-muted d-block">Þróunarteymi</small>
+                            </div>
+                            <div class="test-user-item">
+                                <code>demo / 999999</code>
+                                <small class="text-muted d-block">Kynning</small>
+                            </div>
+                            <div class="test-user-item">
+                                <code>tester / 111111</code>
+                                <small class="text-muted d-block">Prófanir</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Test Mode Features -->
+                    <div class="test-features mt-4">
+                        <h6><i class="fas fa-list me-2"></i>Test stillingar:</h6>
+                        <ul class="feature-list">
+                            <li><i class="fas fa-check text-success me-2"></i>Engin raunveruleg greiðsla</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Birgðir ekki uppfærðar</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Pantanir merktar sem test</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Aukin upplýsingaleit</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Virtual PIN Keypad -->
+    <div class="virtual-keypad mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-4">
+                <div class="keypad-container">
+                    <div class="keypad-title text-center mb-3">
+                        <small class="text-muted">PIN Keypad</small>
+                    </div>
+                    <div class="keypad-grid">
+                        <div class="row g-2">
+                            {% for digit in range(1, 10) %}
+                            <div class="col-4">
+                                <button type="button" class="btn btn-outline-secondary btn-lg w-100 pin-btn" data-digit="{{ digit }}">
+                                    {{ digit }}
+                                </button>
+                            </div>
+                            {% endfor %}
+                            <div class="col-4">
+                                <button type="button" class="btn btn-outline-danger btn-lg w-100 pin-btn" data-action="clear">
+                                    <i class="fas fa-backspace"></i>
+                                </button>
+                            </div>
+                            <div class="col-4">
+                                <button type="button" class="btn btn-outline-secondary btn-lg w-100 pin-btn" data-digit="0">
+                                    0
+                                </button>
+                            </div>
+                            <div class="col-4">
+                                <button type="button" class="btn btn-outline-success btn-lg w-100 pin-btn" data-action="enter">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-focus on username input
+document.getElementById('username').focus();
+
+// Virtual PIN keypad functionality
+const pinInput = document.getElementById('pin');
+const pinBtns = document.querySelectorAll('.pin-btn');
+
+pinBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+        const digit = this.dataset.digit;
+        const action = this.dataset.action;
+        
+        if (digit) {
+            // Add digit if under 6 characters
+            if (pinInput.value.length < 6) {
+                pinInput.value += digit;
+                pinInput.focus();
+            }
+        } else if (action === 'clear') {
+            // Remove last character
+            pinInput.value = pinInput.value.slice(0, -1);
+            pinInput.focus();
+        } else if (action === 'enter') {
+            // Submit form if all fields filled
+            if (document.getElementById('username').value && pinInput.value.length === 6) {
+                document.getElementById('testLoginForm').submit();
+            }
+        }
+    });
+});
+
+// Only allow numbers in PIN input
+pinInput.addEventListener('input', function(e) {
+    this.value = this.value.replace(/[^0-9]/g, '');
+    if (this.value.length > 6) {
+        this.value = this.value.slice(0, 6);
+    }
+});
+
+// Form submission handling
+document.getElementById('testLoginForm').addEventListener('submit', function(e) {
+    const username = document.getElementById('username').value;
+    const pin = pinInput.value;
+    const btn = document.getElementById('loginBtn');
+    
+    if (!username || pin.length !== 6) {
+        e.preventDefault();
+        alert('Vinsamlegast fylltu út alla reiti');
+        return;
+    }
+    
+    // Show processing state
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Skráir inn...';
+});
+
+// Quick login buttons for common test users
+const quickLoginUsers = [
+    { username: 'developer', pin: '123456' },
+    { username: 'demo', pin: '999999' },
+    { username: 'tester', pin: '111111' }
+];
+
+// Add click handlers to test user items
+document.querySelectorAll('.test-user-item').forEach((item, index) => {
+    item.style.cursor = 'pointer';
+    item.addEventListener('click', function() {
+        const user = quickLoginUsers[index];
+        if (user) {
+            document.getElementById('username').value = user.username;
+            document.getElementById('pin').value = user.pin;
+            
+            // Visual feedback
+            this.style.backgroundColor = '#e3f2fd';
+            setTimeout(() => {
+                this.style.backgroundColor = '';
+            }, 200);
+        }
+    });
+});
+
+// Touch feedback for PIN buttons
+pinBtns.forEach(btn => {
+    btn.addEventListener('touchstart', function() {
+        this.style.transform = 'scale(0.95)';
+    });
+    
+    btn.addEventListener('touchend', function() {
+        this.style.transform = 'scale(1)';
+    });
+});
+</script>
+{% endblock %}

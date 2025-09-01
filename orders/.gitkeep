@@ -1,0 +1,11 @@
+# This file ensures the orders directory structure is maintained in version control
+# The orders directory is used for JSON-based order queue management
+
+# Directory structure:
+# orders/
+# ├── pending/     - New orders waiting to be processed
+# ├── processing/  - Orders currently being processed by the robot
+# ├── completed/   - Successfully completed orders
+# └── archive/     - Archived orders for historical tracking
+
+# This file can be removed once actual order files are created
