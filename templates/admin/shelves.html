@@ -5,54 +5,35 @@
 
 {% block content %}
 <div class="shelf-management">
-    <!-- Zone Configuration -->
+    <!-- Zone Configuration (Individual Shelf) -->
     <div class="card mb-4" id="zone-config-card" style="display: none;">
         <div class="card-header bg-warning">
-            <h5><i class="fas fa-cog me-2"></i>Configure Shelf Zones</h5>
+            <h5><i class="fas fa-cog me-2"></i>Configure Shelf Sizes</h5>
         </div>
         <div class="card-body">
             <div class="alert alert-warning">
                 <i class="fas fa-exclamation-triangle me-2"></i>
-                <strong>Warning:</strong> Changing shelf zones will affect product placement compatibility. This action requires confirmation.
+                <strong>Warning:</strong> Click on S/M/L buttons for each shelf to set its size. This affects product compatibility.
             </div>
             
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">Small Items Zone</label>
-                    <div class="input-group">
-                        <span class="input-group-text">Shelf</span>
-                        <input type="number" id="small-start" class="form-control" min="1" max="40" value="1">
-                        <span class="input-group-text">to</span>
-                        <input type="number" id="small-end" class="form-control" min="1" max="40" value="15">
+            <div class="shelf-config-grid">
+                {% for shelf in range(1, 41) %}
+                <div class="config-shelf-item" data-shelf="{{ shelf }}">
+                    <div class="shelf-label">{{ shelf }}</div>
+                    <div class="size-buttons">
+                        <button class="size-btn btn-sm" data-size="small" onclick="setShelfSize({{ shelf }}, 'small')">S</button>
+                        <button class="size-btn btn-sm" data-size="medium" onclick="setShelfSize({{ shelf }}, 'medium')">M</button>
+                        <button class="size-btn btn-sm" data-size="large" onclick="setShelfSize({{ shelf }}, 'large')">L</button>
                     </div>
                 </div>
-                
-                <div class="col-md-4">
-                    <label class="form-label">Medium Items Zone</label>
-                    <div class="input-group">
-                        <span class="input-group-text">Shelf</span>
-                        <input type="number" id="medium-start" class="form-control" min="1" max="40" value="16">
-                        <span class="input-group-text">to</span>
-                        <input type="number" id="medium-end" class="form-control" min="1" max="40" value="30">
-                    </div>
-                </div>
-                
-                <div class="col-md-4">
-                    <label class="form-label">Large Items Zone</label>
-                    <div class="input-group">
-                        <span class="input-group-text">Shelf</span>
-                        <input type="number" id="large-start" class="form-control" min="1" max="40" value="31">
-                        <span class="input-group-text">to</span>
-                        <input type="number" id="large-end" class="form-control" min="1" max="40" value="40">
-                    </div>
-                </div>
+                {% endfor %}
             </div>
             
             <div class="mt-3">
-                <button class="btn btn-danger" onclick="saveZoneConfig()">
-                    <i class="fas fa-save me-2"></i>Save Zone Configuration
+                <button class="btn btn-danger" onclick="saveShelfConfig()">
+                    <i class="fas fa-save me-2"></i>Save Configuration
                 </button>
-                <button class="btn btn-secondary" onclick="cancelZoneConfig()">
+                <button class="btn btn-secondary" onclick="cancelShelfConfig()">
                     <i class="fas fa-times me-2"></i>Cancel
                 </button>
             </div>
@@ -65,8 +46,8 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5><i class="fas fa-box me-2"></i>Product Assignment</h5>
                 <div>
-                    <button class="btn btn-warning btn-sm me-2" onclick="openZoneConfig()">
-                        <i class="fas fa-cog me-1"></i>Configure Zones
+                    <button class="btn btn-warning btn-sm me-2" onclick="openShelfConfig()">
+                        <i class="fas fa-cog me-1"></i>Configure Shelf Sizes
                     </button>
                     <button class="btn btn-primary btn-sm" onclick="syncProducts()">
                         <i class="fas fa-sync me-1"></i>Sync Products
@@ -76,16 +57,20 @@
         </div>
         <div class="card-body">
             <div class="row g-3 align-items-end">
-                <div class="col-md-6">
+                <div class="col-md-5">
                     <label for="product-selector" class="form-label">Select Product from Shopify</label>
                     <select id="product-selector" class="form-select form-select-lg">
                         <option value="">-- Select a product to assign --</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <label for="quantity-input" class="form-label">Quantity</label>
+                    <input type="number" id="quantity-input" class="form-control" min="1" disabled>
+                </div>
+                <div class="col-md-2">
                     <div id="product-info" class="text-muted" style="display: none;">
-                        <small>Box Size: <span id="box-size-display" class="badge bg-info"></span></small><br>
-                        <small>Available: <span id="stock-display"></span> units</small>
+                        <small>Size: <span id="box-size-display" class="badge bg-info"></span></small><br>
+                        <small>Available: <span id="available-display"></span></small>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -93,6 +78,11 @@
                         <i class="fas fa-plus me-2"></i>Assign to Selected Shelf
                     </button>
                 </div>
+            </div>
+            
+            <div id="partial-assignment-reason" class="mt-2" style="display: none;">
+                <label class="form-label text-warning">Why are you not assigning all available units?</label>
+                <input type="text" id="reason-input" class="form-control" placeholder="e.g., Distributing across multiple shelves">
             </div>
         </div>
     </div>
@@ -111,28 +101,31 @@
             </div>
         </div>
         <div class="card-body">
-            <div class="shelf-zones mb-3" id="zone-display">
-                <span class="badge bg-secondary me-2">Zone 1-15: Small Items</span>
-                <span class="badge bg-primary me-2">Zone 16-30: Medium Items</span>
-                <span class="badge bg-warning text-dark">Zone 31-40: Large Items</span>
-            </div>
-            
             <div class="shelf-grid-wrapper">
                 <div class="shelf-grid">
                     {% for shelf in range(1, 41) %}
                     <div class="shelf-item" data-shelf="{{ shelf }}" onclick="selectShelf({{ shelf }})">
                         <div class="shelf-number">{{ shelf }}</div>
-                        <div class="shelf-content">
-                            <div class="shelf-status">Empty</div>
-                            <div class="shelf-product" style="display: none;">
-                                <div class="product-sku"></div>
-                                <div class="product-name"></div>
-                                <div class="product-stock"></div>
-                            </div>
-                        </div>
+                        <div class="shelf-indicator"></div>
+                        <div class="shelf-size-badge"></div>
                     </div>
                     {% endfor %}
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Shelf Details Modal -->
+<div class="modal fade" id="shelfDetailsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Shelf Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="shelf-details-content">
+                <!-- Populated dynamically -->
             </div>
         </div>
     </div>
@@ -143,17 +136,17 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-warning">
-                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Confirm Zone Configuration</h5>
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Confirm Configuration</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to change the shelf zone configuration?</p>
-                <p class="text-danger"><strong>Warning:</strong> This will affect all existing shelf assignments and product compatibility.</p>
-                <div id="zone-changes" class="mt-3"></div>
+                <p>Are you sure you want to save the shelf size configuration?</p>
+                <p class="text-danger"><strong>Warning:</strong> This will affect product compatibility for all shelves.</p>
+                <div id="config-changes" class="mt-3"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" onclick="confirmZoneChanges()">
+                <button type="button" class="btn btn-danger" onclick="confirmShelfChanges()">
                     <i class="fas fa-check me-2"></i>Confirm Changes
                 </button>
             </div>
@@ -174,8 +167,8 @@
 
 .shelf-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 15px;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 12px;
     max-width: 1200px;
     margin: 0 auto;
 }
@@ -196,13 +189,11 @@
     background: white;
     border: 2px solid #dee2e6;
     border-radius: 8px;
-    padding: 10px;
+    padding: 8px;
     text-align: center;
     cursor: pointer;
     transition: all 0.3s ease;
-    min-height: 100px;
-    display: flex;
-    flex-direction: column;
+    min-height: 80px;
     position: relative;
 }
 
@@ -231,7 +222,6 @@
 
 .shelf-item.occupied {
     border-color: #ffc107;
-    background: #fff3cd;
 }
 
 .shelf-item.same-product {
@@ -239,60 +229,106 @@
     background: #d1ecf1;
 }
 
-/* Zone colors for shelf items */
-.shelf-item.zone-small {
-    border-top: 4px solid #6c757d;
-}
-
-.shelf-item.zone-medium {
-    border-top: 4px solid #0d6efd;
-}
-
-.shelf-item.zone-large {
-    border-top: 4px solid #ffc107;
-}
-
 .shelf-number {
     font-weight: bold;
-    font-size: 1.1rem;
+    font-size: 1rem;
     color: #495057;
+}
+
+.shelf-indicator {
+    width: 30px;
+    height: 30px;
+    margin: 5px auto;
+    border-radius: 50%;
+    background: #e9ecef;
+}
+
+.shelf-item.occupied .shelf-indicator {
+    background: #ffc107;
+}
+
+.shelf-size-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 0.6rem;
+    font-weight: bold;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.shelf-size-badge.size-small {
+    background: #6c757d;
+    color: white;
+}
+
+.shelf-size-badge.size-medium {
+    background: #0d6efd;
+    color: white;
+}
+
+.shelf-size-badge.size-large {
+    background: #ffc107;
+    color: black;
+}
+
+/* Configuration Grid */
+.shelf-config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 5px;
+}
+
+.config-shelf-item {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 8px;
+    text-align: center;
+}
+
+.shelf-label {
+    font-weight: bold;
     margin-bottom: 5px;
 }
 
-.shelf-content {
-    flex-grow: 1;
+.size-buttons {
     display: flex;
-    flex-direction: column;
+    gap: 2px;
     justify-content: center;
 }
 
-.shelf-status {
-    color: #6c757d;
-    font-size: 0.85rem;
-}
-
-.shelf-product {
+.size-btn {
+    padding: 2px 8px;
+    border: 1px solid #dee2e6;
+    background: white;
+    cursor: pointer;
+    border-radius: 3px;
     font-size: 0.75rem;
 }
 
-.product-sku {
-    font-weight: bold;
-    color: #0d6efd;
-    font-size: 0.7rem;
+.size-btn:hover {
+    background: #e9ecef;
 }
 
-.product-name {
-    color: #495057;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.7rem;
-    margin: 2px 0;
+.size-btn.active-small {
+    background: #6c757d;
+    color: white;
 }
 
-.product-stock {
-    color: #6c757d;
-    font-size: 0.65rem;
+.size-btn.active-medium {
+    background: #0d6efd;
+    color: white;
+}
+
+.size-btn.active-large {
+    background: #ffc107;
+    color: black;
 }
 
 .shelf-legend {
@@ -321,23 +357,16 @@
 }
 
 .legend-color.occupied {
-    background: #fff3cd;
-    border-color: #ffc107;
+    background: #ffc107;
 }
 
 .legend-color.empty {
-    background: #ffffff;
+    background: #e9ecef;
 }
 
 .legend-color.incompatible {
     background: #f8d7da;
     border-color: #dc3545;
-}
-
-.shelf-zones {
-    padding: 10px;
-    background: #f8f9fa;
-    border-radius: 5px;
 }
 </style>
 
@@ -347,169 +376,13 @@ let shelves = [];
 let selectedProduct = null;
 let selectedShelf = null;
 let productMetadata = {};
-let zoneConfig = {
-    small: { start: 1, end: 15 },
-    medium: { start: 16, end: 30 },
-    large: { start: 31, end: 40 }
-};
+let shelfSizes = {};
+let tempShelfConfig = {};
 
 // Load data on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadShelfData();
-    loadZoneConfig();
 });
-
-function loadZoneConfig() {
-    fetch('/admin/shelves/zones')
-        .then(response => response.json())
-        .then(data => {
-            if (data.zones) {
-                zoneConfig = data.zones;
-                updateZoneDisplay();
-                applyZoneColors();
-            }
-        })
-        .catch(error => console.error('Error loading zone config:', error));
-}
-
-function updateZoneDisplay() {
-    const display = document.getElementById('zone-display');
-    display.innerHTML = `
-        <span class="badge bg-secondary me-2">Zone ${zoneConfig.small.start}-${zoneConfig.small.end}: Small Items</span>
-        <span class="badge bg-primary me-2">Zone ${zoneConfig.medium.start}-${zoneConfig.medium.end}: Medium Items</span>
-        <span class="badge bg-warning text-dark">Zone ${zoneConfig.large.start}-${zoneConfig.large.end}: Large Items</span>
-    `;
-}
-
-function applyZoneColors() {
-    document.querySelectorAll('.shelf-item').forEach(item => {
-        const shelfNum = parseInt(item.dataset.shelf);
-        item.classList.remove('zone-small', 'zone-medium', 'zone-large');
-        
-        if (shelfNum >= zoneConfig.small.start && shelfNum <= zoneConfig.small.end) {
-            item.classList.add('zone-small');
-        } else if (shelfNum >= zoneConfig.medium.start && shelfNum <= zoneConfig.medium.end) {
-            item.classList.add('zone-medium');
-        } else if (shelfNum >= zoneConfig.large.start && shelfNum <= zoneConfig.large.end) {
-            item.classList.add('zone-large');
-        }
-    });
-}
-
-function openZoneConfig() {
-    document.getElementById('zone-config-card').style.display = 'block';
-    document.getElementById('small-start').value = zoneConfig.small.start;
-    document.getElementById('small-end').value = zoneConfig.small.end;
-    document.getElementById('medium-start').value = zoneConfig.medium.start;
-    document.getElementById('medium-end').value = zoneConfig.medium.end;
-    document.getElementById('large-start').value = zoneConfig.large.start;
-    document.getElementById('large-end').value = zoneConfig.large.end;
-}
-
-function cancelZoneConfig() {
-    document.getElementById('zone-config-card').style.display = 'none';
-}
-
-function saveZoneConfig() {
-    const newConfig = {
-        small: {
-            start: parseInt(document.getElementById('small-start').value),
-            end: parseInt(document.getElementById('small-end').value)
-        },
-        medium: {
-            start: parseInt(document.getElementById('medium-start').value),
-            end: parseInt(document.getElementById('medium-end').value)
-        },
-        large: {
-            start: parseInt(document.getElementById('large-start').value),
-            end: parseInt(document.getElementById('large-end').value)
-        }
-    };
-    
-    // Validate zones don't overlap
-    const allRanges = [];
-    for (const [size, range] of Object.entries(newConfig)) {
-        for (let i = range.start; i <= range.end; i++) {
-            if (allRanges.includes(i)) {
-                alert('Error: Zones cannot overlap. Shelf ' + i + ' is assigned to multiple zones.');
-                return;
-            }
-            allRanges.push(i);
-        }
-    }
-    
-    // Show confirmation modal
-    const changesDiv = document.getElementById('zone-changes');
-    changesDiv.innerHTML = `
-        <table class="table table-sm">
-            <thead>
-                <tr>
-                    <th>Zone</th>
-                    <th>Current</th>
-                    <th>New</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Small Items</td>
-                    <td>${zoneConfig.small.start}-${zoneConfig.small.end}</td>
-                    <td>${newConfig.small.start}-${newConfig.small.end}</td>
-                </tr>
-                <tr>
-                    <td>Medium Items</td>
-                    <td>${zoneConfig.medium.start}-${zoneConfig.medium.end}</td>
-                    <td>${newConfig.medium.start}-${newConfig.medium.end}</td>
-                </tr>
-                <tr>
-                    <td>Large Items</td>
-                    <td>${zoneConfig.large.start}-${zoneConfig.large.end}</td>
-                    <td>${newConfig.large.start}-${newConfig.large.end}</td>
-                </tr>
-            </tbody>
-        </table>
-    `;
-    
-    // Store new config temporarily
-    window.pendingZoneConfig = newConfig;
-    
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
-    modal.show();
-}
-
-function confirmZoneChanges() {
-    if (!window.pendingZoneConfig) return;
-    
-    fetch('/admin/shelves/zones', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ zones: window.pendingZoneConfig })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            zoneConfig = window.pendingZoneConfig;
-            updateZoneDisplay();
-            applyZoneColors();
-            alert('Zone configuration updated successfully');
-            
-            // Hide modal and config card
-            bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
-            document.getElementById('zone-config-card').style.display = 'none';
-            
-            // Reload shelf data
-            loadShelfData();
-        } else {
-            alert('Error: ' + (data.error || 'Failed to update zones'));
-        }
-    })
-    .catch(error => {
-        console.error('Error updating zones:', error);
-        alert('Failed to update zone configuration');
-    });
-}
 
 function loadShelfData() {
     fetch('/admin/shelves/assign')
@@ -518,9 +391,18 @@ function loadShelfData() {
             products = data.products;
             shelves = data.shelves;
             productMetadata = data.metadata;
+            shelfSizes = data.shelf_sizes || {};
             
-            populateProductSelector();
-            updateShelfDisplay();
+            // Load shelf configurations
+            fetch('/admin/shelves/zones')
+                .then(res => res.json())
+                .then(zoneData => {
+                    if (zoneData.shelves) {
+                        shelfSizes = zoneData.shelves;
+                    }
+                    populateProductSelector();
+                    updateShelfDisplay();
+                });
         })
         .catch(error => {
             console.error('Error loading shelf data:', error);
@@ -534,7 +416,7 @@ function populateProductSelector() {
     products.forEach(product => {
         const option = document.createElement('option');
         option.value = product.sku;
-        option.textContent = `${product.title} (SKU: ${product.sku}) - ${product.available} available`;
+        option.textContent = `${product.title} (SKU: ${product.sku}) - ${product.available_to_assign || product.available} available to assign`;
         option.dataset.product = JSON.stringify(product);
         selector.appendChild(option);
     });
@@ -549,6 +431,7 @@ function onProductSelected() {
     if (!selected) {
         selectedProduct = null;
         document.getElementById('product-info').style.display = 'none';
+        document.getElementById('quantity-input').disabled = true;
         clearShelfHighlights();
         return;
     }
@@ -562,10 +445,31 @@ function onProductSelected() {
     
     const metadata = productMetadata[selectedProduct.sku] || { box_size: 'medium', max_stack: 10 };
     document.getElementById('box-size-display').textContent = metadata.box_size;
-    document.getElementById('stock-display').textContent = selectedProduct.available;
+    document.getElementById('available-display').textContent = selectedProduct.available_to_assign || selectedProduct.available;
+    
+    // Enable quantity input
+    const quantityInput = document.getElementById('quantity-input');
+    quantityInput.disabled = false;
+    quantityInput.max = selectedProduct.available_to_assign || selectedProduct.available;
+    quantityInput.value = selectedProduct.available_to_assign || selectedProduct.available;
+    
+    // Watch for quantity changes
+    quantityInput.addEventListener('input', onQuantityChange);
     
     // Highlight compatible shelves
     highlightCompatibleShelves(metadata.box_size);
+}
+
+function onQuantityChange() {
+    const quantity = parseInt(document.getElementById('quantity-input').value);
+    const available = selectedProduct.available_to_assign || selectedProduct.available;
+    
+    const reasonDiv = document.getElementById('partial-assignment-reason');
+    if (quantity < available) {
+        reasonDiv.style.display = 'block';
+    } else {
+        reasonDiv.style.display = 'none';
+    }
 }
 
 function highlightCompatibleShelves(boxSize) {
@@ -574,7 +478,8 @@ function highlightCompatibleShelves(boxSize) {
     const shelfItems = document.querySelectorAll('.shelf-item');
     shelfItems.forEach(item => {
         const shelfNumber = parseInt(item.dataset.shelf);
-        const isCompatible = checkCompatibility(shelfNumber, boxSize);
+        const shelfSize = shelfSizes[shelfNumber] || getDefaultSize(shelfNumber);
+        const isCompatible = shelfSize === boxSize;
         const currentShelf = shelves.find(s => s.shelf_number === shelfNumber);
         
         if (currentShelf && currentShelf.sku === selectedProduct.sku) {
@@ -589,15 +494,10 @@ function highlightCompatibleShelves(boxSize) {
     });
 }
 
-function checkCompatibility(shelfNumber, boxSize) {
-    if (boxSize === 'small') {
-        return shelfNumber >= zoneConfig.small.start && shelfNumber <= zoneConfig.small.end;
-    } else if (boxSize === 'medium') {
-        return shelfNumber >= zoneConfig.medium.start && shelfNumber <= zoneConfig.medium.end;
-    } else if (boxSize === 'large') {
-        return shelfNumber >= zoneConfig.large.start && shelfNumber <= zoneConfig.large.end;
-    }
-    return false;
+function getDefaultSize(shelfNumber) {
+    if (shelfNumber <= 15) return 'small';
+    if (shelfNumber <= 30) return 'medium';
+    return 'large';
 }
 
 function clearShelfHighlights() {
@@ -608,12 +508,20 @@ function clearShelfHighlights() {
 }
 
 function selectShelf(shelfNumber) {
+    const item = document.querySelector(`[data-shelf="${shelfNumber}"]`);
+    const currentShelf = shelves.find(s => s.shelf_number === shelfNumber);
+    
+    // If shelf has product, show details
+    if (currentShelf && currentShelf.sku && !selectedProduct) {
+        showShelfDetails(shelfNumber, currentShelf);
+        return;
+    }
+    
     if (!selectedProduct) {
         alert('Please select a product first');
         return;
     }
     
-    const item = document.querySelector(`[data-shelf="${shelfNumber}"]`);
     if (item.classList.contains('incompatible')) {
         alert('This shelf is not compatible with the selected product size');
         return;
@@ -630,20 +538,49 @@ function selectShelf(shelfNumber) {
     document.getElementById('assign-btn').disabled = false;
 }
 
+function showShelfDetails(shelfNumber, shelf) {
+    const content = `
+        <p><strong>Shelf Number:</strong> ${shelfNumber}</p>
+        <p><strong>Product:</strong> ${shelf.product_name}</p>
+        <p><strong>SKU:</strong> ${shelf.sku}</p>
+        <p><strong>Assigned Quantity:</strong> ${shelf.assigned_quantity || 0}</p>
+        <p><strong>Current Stock:</strong> ${shelf.current_stock}</p>
+        <p><strong>Size Category:</strong> ${shelfSizes[shelfNumber] || getDefaultSize(shelfNumber)}</p>
+    `;
+    
+    document.getElementById('shelf-details-content').innerHTML = content;
+    const modal = new bootstrap.Modal(document.getElementById('shelfDetailsModal'));
+    modal.show();
+}
+
 function assignToShelf() {
     if (!selectedProduct || !selectedShelf) {
         alert('Please select both a product and a shelf');
         return;
     }
     
-    const formData = new FormData();
-    formData.append('shelf_number', selectedShelf);
-    formData.append('sku', selectedProduct.sku);
-    formData.append('product_name', selectedProduct.title);
+    const quantity = parseInt(document.getElementById('quantity-input').value);
+    const reason = document.getElementById('reason-input').value;
+    
+    if (quantity < (selectedProduct.available_to_assign || selectedProduct.available) && !reason) {
+        alert('Please provide a reason for partial assignment');
+        return;
+    }
+    
+    const data = {
+        shelf_number: selectedShelf,
+        sku: selectedProduct.sku,
+        product_name: selectedProduct.title,
+        quantity: quantity,
+        reason: reason
+    };
     
     fetch('/admin/shelves/assign', {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
     })
     .then(response => response.json())
     .then(data => {
@@ -653,6 +590,9 @@ function assignToShelf() {
             
             // Reset selection
             document.getElementById('product-selector').value = '';
+            document.getElementById('quantity-input').value = '';
+            document.getElementById('reason-input').value = '';
+            document.getElementById('partial-assignment-reason').style.display = 'none';
             selectedProduct = null;
             selectedShelf = null;
             document.getElementById('assign-btn').disabled = true;
@@ -668,22 +608,116 @@ function assignToShelf() {
 }
 
 function updateShelfDisplay() {
-    shelves.forEach(shelf => {
-        const item = document.querySelector(`[data-shelf="${shelf.shelf_number}"]`);
-        if (item && shelf.sku) {
-            const statusEl = item.querySelector('.shelf-status');
-            const productEl = item.querySelector('.shelf-product');
-            
-            statusEl.style.display = 'none';
-            productEl.style.display = 'block';
-            
-            productEl.querySelector('.product-sku').textContent = shelf.sku;
-            productEl.querySelector('.product-name').textContent = shelf.product_name;
-            productEl.querySelector('.product-stock').textContent = `Stock: ${shelf.current_stock}`;
+    // Update shelf indicators
+    document.querySelectorAll('.shelf-item').forEach(item => {
+        const shelfNum = parseInt(item.dataset.shelf);
+        const shelf = shelves.find(s => s.shelf_number === shelfNum);
+        const size = shelfSizes[shelfNum] || getDefaultSize(shelfNum);
+        
+        // Add size badge
+        const sizeBadge = item.querySelector('.shelf-size-badge');
+        if (size === 'small') {
+            sizeBadge.className = 'shelf-size-badge size-small';
+            sizeBadge.textContent = 'S';
+        } else if (size === 'medium') {
+            sizeBadge.className = 'shelf-size-badge size-medium';
+            sizeBadge.textContent = 'M';
+        } else {
+            sizeBadge.className = 'shelf-size-badge size-large';
+            sizeBadge.textContent = 'L';
+        }
+        
+        // Mark occupied shelves
+        if (shelf && shelf.sku) {
+            item.classList.add('occupied');
         }
     });
+}
+
+function openShelfConfig() {
+    document.getElementById('zone-config-card').style.display = 'block';
+    tempShelfConfig = {...shelfSizes};
     
-    applyZoneColors();
+    // Set current configuration
+    document.querySelectorAll('.config-shelf-item').forEach(item => {
+        const shelfNum = parseInt(item.dataset.shelf);
+        const size = shelfSizes[shelfNum] || getDefaultSize(shelfNum);
+        
+        item.querySelectorAll('.size-btn').forEach(btn => {
+            btn.classList.remove('active-small', 'active-medium', 'active-large');
+            if (btn.dataset.size === size) {
+                btn.classList.add(`active-${size}`);
+            }
+        });
+    });
+}
+
+function setShelfSize(shelfNumber, size) {
+    tempShelfConfig[shelfNumber] = size;
+    
+    // Update button states
+    const item = document.querySelector(`.config-shelf-item[data-shelf="${shelfNumber}"]`);
+    item.querySelectorAll('.size-btn').forEach(btn => {
+        btn.classList.remove('active-small', 'active-medium', 'active-large');
+        if (btn.dataset.size === size) {
+            btn.classList.add(`active-${size}`);
+        }
+    });
+}
+
+function cancelShelfConfig() {
+    document.getElementById('zone-config-card').style.display = 'none';
+    tempShelfConfig = {};
+}
+
+function saveShelfConfig() {
+    // Show confirmation modal
+    const changesDiv = document.getElementById('config-changes');
+    let changesHtml = '<p>The following shelves will be updated:</p><ul>';
+    
+    for (const [shelf, size] of Object.entries(tempShelfConfig)) {
+        const currentSize = shelfSizes[shelf] || getDefaultSize(parseInt(shelf));
+        if (currentSize !== size) {
+            changesHtml += `<li>Shelf ${shelf}: ${currentSize} → ${size}</li>`;
+        }
+    }
+    changesHtml += '</ul>';
+    
+    changesDiv.innerHTML = changesHtml;
+    
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    modal.show();
+}
+
+function confirmShelfChanges() {
+    fetch('/admin/shelves/zones', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ shelves: tempShelfConfig })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            shelfSizes = tempShelfConfig;
+            updateShelfDisplay();
+            alert('Shelf configuration updated successfully');
+            
+            // Hide modal and config card
+            bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+            document.getElementById('zone-config-card').style.display = 'none';
+            
+            // Reload shelf data
+            loadShelfData();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to update configuration'));
+        }
+    })
+    .catch(error => {
+        console.error('Error updating configuration:', error);
+        alert('Failed to update shelf configuration');
+    });
 }
 
 function syncProducts() {

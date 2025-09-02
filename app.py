@@ -423,6 +423,19 @@ def assign_shelf():
         products = shopify_client.get_products()
         shelves = models.ShelfMapping.query.all()
         
+        # Calculate available quantities after assignments
+        available_products = []
+        for product in products:
+            # Get total assigned quantity for this SKU
+            total_assigned = db.session.query(db.func.sum(models.ShelfMapping.assigned_quantity)).filter_by(
+                sku=product['sku'], active=True
+            ).scalar() or 0
+            
+            product_copy = product.copy()
+            product_copy['available_to_assign'] = product['available'] - total_assigned
+            product_copy['total_assigned'] = total_assigned
+            available_products.append(product_copy)
+        
         # Get product metadata for size compatibility
         metadata = {}
         for product in products:
@@ -433,23 +446,32 @@ def assign_shelf():
                     'max_stack': meta.max_stack
                 }
         
+        # Get shelf configurations
+        shelf_configs = models.ShelfConfig.query.all()
+        shelf_sizes = {sc.shelf_number: sc.size_category for sc in shelf_configs}
+        
         return jsonify({
-            'products': products,
+            'products': available_products,
             'shelves': [{
                 'shelf_number': s.shelf_number,
                 'sku': s.sku,
                 'product_name': s.product_name,
                 'current_stock': s.current_stock,
+                'assigned_quantity': s.assigned_quantity,
                 'active': s.active
             } for s in shelves],
-            'metadata': metadata
+            'metadata': metadata,
+            'shelf_sizes': shelf_sizes
         })
     
     # POST - Assign product to shelf
     try:
-        shelf_number = int(request.form.get('shelf_number'))
-        sku = request.form.get('sku')
-        product_name = request.form.get('product_name')
+        data = request.get_json() if request.is_json else request.form
+        shelf_number = int(data.get('shelf_number'))
+        sku = data.get('sku')
+        product_name = data.get('product_name')
+        quantity = int(data.get('quantity', 0))
+        assignment_reason = data.get('reason', '')
         
         # Get product metadata
         meta = models.ProductMetadata.query.filter_by(sku=sku).first()
@@ -464,9 +486,9 @@ def assign_shelf():
             db.session.add(meta)
         
         # Check shelf compatibility
-        compatible = check_shelf_compatibility(shelf_number, meta.box_size)
-        if not compatible:
-            return jsonify({'error': 'Shelf not compatible with product size'}), 400
+        shelf_config = models.ShelfConfig.query.filter_by(shelf_number=shelf_number).first()
+        if shelf_config and shelf_config.size_category != meta.box_size:
+            return jsonify({'error': f'Shelf {shelf_number} is configured for {shelf_config.size_category} items, but product is {meta.box_size}'}), 400
         
         # Check if shelf exists
         shelf = models.ShelfMapping.query.filter_by(shelf_number=shelf_number).first()
@@ -475,6 +497,8 @@ def assign_shelf():
             # Update existing shelf
             shelf.sku = sku
             shelf.product_name = product_name
+            shelf.assigned_quantity = quantity
+            shelf.current_stock = quantity  # Initially set stock same as assigned
             shelf.active = True
             shelf.last_updated = datetime.now()
         else:
@@ -483,13 +507,19 @@ def assign_shelf():
                 shelf_number=shelf_number,
                 sku=sku,
                 product_name=product_name,
-                current_stock=0,
+                assigned_quantity=quantity,
+                current_stock=quantity,
                 active=True
             )
             db.session.add(shelf)
         
         db.session.commit()
-        return jsonify({'success': True, 'message': f'Shelf {shelf_number} assigned successfully'})
+        
+        # Log the assignment with reason if partial
+        if assignment_reason:
+            logging.info(f"Partial assignment: {quantity} units of {sku} to shelf {shelf_number}. Reason: {assignment_reason}")
+        
+        return jsonify({'success': True, 'message': f'Assigned {quantity} units to shelf {shelf_number}'})
         
     except Exception as e:
         logging.error(f"Error assigning shelf: {e}")
@@ -497,10 +527,10 @@ def assign_shelf():
 
 def check_shelf_compatibility(shelf_number, box_size):
     """Check if shelf is compatible with product size"""
-    # Get zone configuration from database
-    zone = models.ShelfZoneConfig.query.filter_by(zone_name=box_size).first()
-    if zone:
-        return zone.start_shelf <= shelf_number <= zone.end_shelf
+    # Get individual shelf configuration
+    shelf_config = models.ShelfConfig.query.filter_by(shelf_number=shelf_number).first()
+    if shelf_config:
+        return shelf_config.size_category == box_size
     
     # Default fallback if no configuration exists
     if box_size == 'small':
@@ -513,85 +543,71 @@ def check_shelf_compatibility(shelf_number, box_size):
 
 @app.route('/admin/shelves/zones', methods=['GET', 'POST'])
 def manage_shelf_zones():
-    """Get or update shelf zone configuration"""
+    """Get or update individual shelf configurations"""
     if not session.get('admin_logged_in'):
         return jsonify({'error': 'Unauthorized'}), 401
     
     if request.method == 'GET':
-        # Get current zone configuration
-        zones = models.ShelfZoneConfig.query.all()
+        # Get current shelf configurations
+        configs = models.ShelfConfig.query.all()
         
-        if not zones:
-            # Create default zones if none exist
-            default_zones = [
-                ('small', 1, 15, '#6c757d'),
-                ('medium', 16, 30, '#0d6efd'),
-                ('large', 31, 40, '#ffc107')
-            ]
-            
-            for zone_name, start, end, color in default_zones:
-                zone = models.ShelfZoneConfig(
-                    zone_name=zone_name,
-                    start_shelf=start,
-                    end_shelf=end,
-                    color=color
+        if not configs:
+            # Create default configurations if none exist
+            for shelf_num in range(1, 41):
+                if shelf_num <= 15:
+                    size = 'small'
+                elif shelf_num <= 30:
+                    size = 'medium'
+                else:
+                    size = 'large'
+                
+                config = models.ShelfConfig(
+                    shelf_number=shelf_num,
+                    size_category=size
                 )
-                db.session.add(zone)
+                db.session.add(config)
             
             db.session.commit()
-            zones = models.ShelfZoneConfig.query.all()
+            configs = models.ShelfConfig.query.all()
         
-        zone_data = {
-            zone.zone_name: {
-                'start': zone.start_shelf,
-                'end': zone.end_shelf,
-                'color': zone.color
-            } for zone in zones
-        }
+        shelf_data = {config.shelf_number: config.size_category for config in configs}
         
-        return jsonify({'zones': zone_data})
+        return jsonify({'shelves': shelf_data})
     
-    # POST - Update zone configuration
+    # POST - Update individual shelf configurations
     try:
         data = request.get_json()
-        new_zones = data.get('zones')
+        shelf_configs = data.get('shelves')
         
-        if not new_zones:
-            return jsonify({'error': 'No zone data provided'}), 400
+        if not shelf_configs:
+            return jsonify({'error': 'No shelf configuration provided'}), 400
         
-        # Validate zones don't overlap
-        all_shelves = set()
-        for zone_name, config in new_zones.items():
-            for shelf in range(config['start'], config['end'] + 1):
-                if shelf in all_shelves:
-                    return jsonify({'error': f'Shelf {shelf} is assigned to multiple zones'}), 400
-                if shelf < 1 or shelf > 40:
-                    return jsonify({'error': f'Shelf {shelf} is out of range (1-40)'}), 400
-                all_shelves.add(shelf)
-        
-        # Update zones in database
-        for zone_name, config in new_zones.items():
-            zone = models.ShelfZoneConfig.query.filter_by(zone_name=zone_name).first()
-            if zone:
-                zone.start_shelf = config['start']
-                zone.end_shelf = config['end']
-                zone.updated_at = datetime.now()
+        # Update each shelf configuration
+        for shelf_num, size_category in shelf_configs.items():
+            shelf_number = int(shelf_num)
+            if shelf_number < 1 or shelf_number > 40:
+                return jsonify({'error': f'Shelf {shelf_number} is out of range (1-40)'}), 400
+            
+            if size_category not in ['small', 'medium', 'large']:
+                return jsonify({'error': f'Invalid size category: {size_category}'}), 400
+            
+            config = models.ShelfConfig.query.filter_by(shelf_number=shelf_number).first()
+            if config:
+                config.size_category = size_category
+                config.updated_at = datetime.now()
             else:
-                # Create new zone if doesn't exist
-                zone = models.ShelfZoneConfig(
-                    zone_name=zone_name,
-                    start_shelf=config['start'],
-                    end_shelf=config['end'],
-                    color=config.get('color', '#6c757d')
+                config = models.ShelfConfig(
+                    shelf_number=shelf_number,
+                    size_category=size_category
                 )
-                db.session.add(zone)
+                db.session.add(config)
         
         db.session.commit()
         
         # Log the change
-        logging.info(f"Shelf zones updated by {session.get('admin_user')}")
+        logging.info(f"Shelf configurations updated by {session.get('admin_user')}")
         
-        return jsonify({'success': True, 'message': 'Zone configuration updated successfully'})
+        return jsonify({'success': True, 'message': 'Shelf configurations updated successfully'})
         
     except Exception as e:
         logging.error(f"Error updating shelf zones: {e}")

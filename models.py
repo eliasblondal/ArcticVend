@@ -10,6 +10,7 @@ class ShelfMapping(db.Model):
     sku = db.Column(db.String(50))
     product_name = db.Column(db.String(100))
     current_stock = db.Column(db.Integer, default=0)
+    assigned_quantity = db.Column(db.Integer, default=0)  # How many units assigned to this shelf
     active = db.Column(db.Boolean, default=True)
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -58,21 +59,18 @@ class TestUser(db.Model):
     pin = db.Column(db.String(6))
     active = db.Column(db.Boolean, default=True)
 
-class ShelfZoneConfig(db.Model):
-    """Configuration for shelf zones"""
-    __tablename__ = 'shelf_zone_config'
+class ShelfConfig(db.Model):
+    """Individual shelf configuration"""
+    __tablename__ = 'shelf_config'
     
-    id = db.Column(db.Integer, primary_key=True)
-    zone_name = db.Column(db.String(20))  # 'small', 'medium', 'large'
-    start_shelf = db.Column(db.Integer)
-    end_shelf = db.Column(db.Integer)
-    color = db.Column(db.String(20))  # Display color for zone
+    shelf_number = db.Column(db.Integer, primary_key=True)
+    size_category = db.Column(db.String(20))  # 'small', 'medium', 'large'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     __table_args__ = (
-        CheckConstraint('start_shelf >= 1 AND end_shelf <= 40', name='valid_shelf_range'),
-        CheckConstraint("zone_name IN ('small', 'medium', 'large')", name='valid_zone_name'),
+        CheckConstraint('shelf_number BETWEEN 1 AND 40', name='valid_shelf_number'),
+        CheckConstraint("size_category IN ('small', 'medium', 'large')", name='valid_size_category'),
     )
 
 class ProductMetadata(db.Model):
